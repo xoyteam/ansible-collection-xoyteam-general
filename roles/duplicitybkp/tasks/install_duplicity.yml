@@ -1,0 +1,11 @@
+---
+# tasks file for backup
+- name: install soft
+  apt:
+    name: "{{ packages }}"
+  vars:
+    packages:
+      - duplicity
+      - python-pip
+      - gnupg2
+  tags: [install]

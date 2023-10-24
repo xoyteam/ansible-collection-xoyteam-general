@@ -1,0 +1,35 @@
+---
+- name: install duplicity
+  include_tasks: install_duplicity.yml
+  tags: [install]
+
+- name: backups directory
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "root"
+    group: "root"
+  loop:
+    - { mode: "0755", path: "{{ backup_path }}" }
+    - { mode: "0755", path: "{{ backup_bin_path }}" }
+    - { mode: "0750", path: "{{ backup_log_path }}" }
+    - { mode: "0700", path: "{{ backup_etc_path }}" }
+    - { mode: "0755", path: "{{ backup_data_path }}" }
+  check_mode: no
+  tags: [always]
+
+- name: load mysql_backup.yml
+  include_tasks: backup_mysql.yml
+  when: bkptype == "backup_mysql"
+  tags: [config_mysqlbackup]
+
+- name: setup ssh key
+  include_tasks: sshkey.yml
+  when: bkptype == "rsync_ssh"
+  tags: [sshkey]
+
+- name: duplicity configure
+  include_tasks: duplicity.yml
+  when: bkptype != "backup_mysql"
+  tags: [duplicity_rsyncssh]

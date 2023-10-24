@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:{{ mysql_image_tag }}
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: {{ mysql_root_password }}
+      MYSQL_DATABASE: {{ mysql_default_database }}
+      MYSQL_USER: {{ mysql_default_username }}
+      MYSQL_PASSWORD: {{ mysql_default_password }}
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./cfg:/etc/mysql
+      - ./data:/var/lib/mysql
+    networks:
+      - {{ docker_network }}
+#    healthcheck:
+#      test: wget localhost:9090/-/healthy -q -O - > /dev/null 2>&1
+
+networks:
+  {{ docker_network }}:
+    external: true

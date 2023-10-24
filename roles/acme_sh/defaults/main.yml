@@ -1,0 +1,6 @@
+---
+#acme_sh_email: nobody@example.com
+acme_sh_home: "/etc/acme_sh"
+
+
+

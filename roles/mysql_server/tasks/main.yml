@@ -1,0 +1,46 @@
+---
+- name: Create directory {{ mysql_server_install_path }}
+  become: yes
+  file:
+    path: "{{ mysql_server_install_path }}"
+    state: directory
+
+- name: Install docker-compose in {{ mysql_server_install_path }}
+  become: yes
+  template:
+    src: "docker-compose.yml"
+    dest: "{{ mysql_server_install_path }}/"
+    mode: '0644'
+    backup: yes
+  register: mysql_server_docker_compose
+
+- name: Create configuration directory in {{ mysql_server_install_path }}
+  become: yes
+  file:
+    path: "{{ mysql_server_install_path }}/cfg"
+    state: directory
+
+- name: Install configuration file in {{ mysql_server_install_path }}/cfg/
+  become: no
+  synchronize:
+    src:  mysql
+    dest: "{{ mysql_server_install_path }}/cfg/"
+    rsync_path: "sudo rsync"
+    mode: push
+  delegate_to: 127.0.0.1
+  register: mysql_server_config
+
+- name: Create data directory in {{ mysql_server_install_path }}
+  become: yes
+  file:
+    path: "{{ mysql_server_install_path }}/data"
+    state: directory
+    owner: nobody
+    group: nogroup
+
+- name: Restart
+  when: mysql_server_docker_compose.changed or mysql_server_config.changed | bool
+  become: yes
+  docker_compose:
+    project_src: "{{ mysql_server_install_path }}"
+    restarted: yes

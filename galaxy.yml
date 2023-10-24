@@ -1,0 +1,21 @@
+namespace: xoyteam
+name: general
+version: 1.1.1
+readme: README.md
+authors:
+- Yuriy Zyga <xoy@xoyteam.ru>
+description: docker-compose apps
+license:
+- GPL-3.0-or-later
+license_file: ''
+tags: []
+dependencies: {}
+repository: https://github.com/xoyteam/collection-general
+documentation: https://github.com/xoyteam/collection-general
+homepage: https://github.com/xoyteam/collection-general
+issues: https://github.com/xoyteam/collection-general/issues
+build_ignore: ['.git', 'LICENSE']
+
+
+
+

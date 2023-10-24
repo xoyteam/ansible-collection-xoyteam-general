@@ -1,0 +1,50 @@
+---
+- name: backups directory
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    mode: "{{ item.mode }}"
+    owner: "root"
+    group: "root"
+  loop:
+    - { mode: "0700", path: "{{ backup_data_path }}/mysql" }
+  check_mode: no
+  tags: [config_mysqlbackup]
+
+- name: config file create for backup
+  lineinfile:
+    path: "{{ backup_mysql_config }}"
+    owner: root
+    group: root
+    mode: '0600'
+    create: true
+    regexp: "{{ mysql_db }} {{ backup_data_path }}/mysql {{ db_host }} {{ mysqlbkp_port }} {{ mysqlbkp_user }} {{ mysqlbkp_pass }}"
+    line:   "{{ mysql_db }} {{ backup_data_path }}/mysql {{ db_host }} {{ mysqlbkp_port }} {{ mysqlbkp_user }} {{ mysqlbkp_pass }}"
+  loop: "{{ backup_mysql_databases }}"
+  tags: [config_mysqlbackup]
+
+- name: script setup
+  template:
+    src:  "backup_mysql.sh.j2"
+    dest: "{{ backup_mysql_script }}"
+    mode: 0755
+    owner: "root"
+    group: "root"
+  tags: [config_mysqlbackup]
+
+- name: cronjob create
+  cron:
+    name: "mysql backup by list"
+    minute: "03"
+    hour: "0"
+    job: "{{ backup_mysql_script }} >{{ backup_mysql_log }} 2>&1"
+  tags: [config_mysqlbackup]
+
+- name: logrotate {{ backup_name }}
+  blockinfile:
+    path: "/etc/logrotate.d/{{ item.path }}"
+    block: "{{ item.conf }}"
+    create: true
+  loop: "{{ backup_mysql_logrotate }}"
+  tags: [config_mysqlbackup]
+

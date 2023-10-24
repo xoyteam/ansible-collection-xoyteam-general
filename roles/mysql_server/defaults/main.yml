@@ -1,0 +1,8 @@
+---
+mysql_image_tag: 5.7-debian
+mysql_root_password: secretroot
+mysql_default_database: simpledb
+mysql_default_username: simpleuser
+mysql_default_password: simplesecret
+docker_network: mysql
+mysql_server_install_path: /home/dkradm/backupdb

@@ -1,0 +1,37 @@
+---
+- name: setup backup script for project
+  template:
+    src: duplicity.sh.j2
+    dest: "{{ backup_duplicity_script }}"
+    mode: 0700
+    owner: root
+    group: root
+  tags: [duplicity_rsyncssh]
+
+- name: setup exclude.list for project
+  template:
+    src: exclude.list.j2
+    dest: "{{ backup_duplicity_exclude_list }}"
+    mode: 0700
+    owner: root
+    group: root
+  when:
+    - backup_exclude_filelist is defined
+    - backup_exclude_filelist is true
+  tags: [duplicity_rsyncssh]
+
+- name: duplicity log rotation
+  blockinfile:
+    path: "/etc/logrotate.d/{{ item.path }}"
+    block: "{{ item.conf }}"
+    create: true
+  loop: "{{ backup_duplicity_logrotate }}"
+  tags: [duplicity_rsyncssh]
+
+- name: add cron job
+  cron:
+    name: make {{ backup_name }} cront task
+    minute: "06"
+    hour:   "2"
+    job:    "{{ backup_duplicity_script }} > {{ backup_duplicity_log }} 2>&1"
+  tags: [duplicity_rsyncssh]

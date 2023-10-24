@@ -1,0 +1,18 @@
+---
+- name: Generate an OpenSSH keypair
+  community.crypto.openssh_keypair:
+    path: "{{ backup_key_path }}"
+    type: ed25519
+  register: backup_sshkeys
+  tags: [sshkey]
+
+
+- name: config file create for backup
+  become: no
+  ansible.posix.authorized_key:
+    user: sql
+    state: present
+    key: "{{ backup_sshkeys.public_key }}"
+  delegate_to: "{{ backup_server }}"
+  tags: [sshkey]
+

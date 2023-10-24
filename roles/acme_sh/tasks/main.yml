@@ -1,0 +1,20 @@
+---
+- name: download acme.sh
+  ansible.builtin.get_url:
+    url: https://get.acme.sh
+    dest: /usr/local/bin/acme.sh
+    mode: 0755
+    owner: root
+    group: root
+
+- name: install acme.sh
+  ansible.builtin.shell: |
+    /usr/local/bin/acme.sh install -m {{ acme_sh_email }} --home "{{ acme_sh_home }}"
+
+- name: set default CA
+  ansible.builtin.shell: |
+    /usr/local/bin/acme.sh  set-default-ca --server letsencrypt --home "{{ acme_sh_home }}"
+
+- name: register account
+  ansible.builtin.shell: |
+    /usr/local/bin/acme.sh register-account -m {{ acme_sh_email }} --home "{{ acme_sh_home }}"
