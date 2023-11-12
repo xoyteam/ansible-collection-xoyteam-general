@@ -1,35 +1,28 @@
 ---
-- name: install duplicity
-  include_tasks: install_duplicity.yml
-  tags: [install]
-
-- name: backups directory
-  file:
-    path: "{{ item.path }}"
-    state: directory
-    mode: "{{ item.mode }}"
-    owner: "root"
-    group: "root"
-  loop:
-    - { mode: "0755", path: "{{ backup_path }}" }
-    - { mode: "0755", path: "{{ backup_bin_path }}" }
-    - { mode: "0750", path: "{{ backup_log_path }}" }
-    - { mode: "0700", path: "{{ backup_etc_path }}" }
-    - { mode: "0755", path: "{{ backup_data_path }}" }
-  check_mode: no
-  tags: [always]
-
-- name: load mysql_backup.yml
-  include_tasks: backup_mysql.yml
-  when: bkptype == "backup_mysql"
-  tags: [config_mysqlbackup]
-
-- name: setup ssh key
-  include_tasks: sshkey.yml
-  when: bkptype == "rsync_ssh"
-  tags: [sshkey]
-
-- name: duplicity configure
+- name: add duplicity
   include_tasks: duplicity.yml
-  when: bkptype != "backup_mysql"
-  tags: [duplicity_rsyncssh]
+  when: bkptype == "duplicity" or bkptype == "swift"
+
+- name: backup mysql
+  include_tasks: mysql.yml
+  when: bkptype == "mysql"
+
+- name: backup mysql with all params in cfg
+  include_tasks: mysql_fullcfg.yml
+  when: bkptype == "mysql_fullcfg"
+
+- name: configure client for mysql backup
+  include_tasks: mysqlclient.yml
+  when: bkptype == "mysqlclient"
+
+- name: configure client for mysql backup with all params in cfg
+  include_tasks: mysqlclient_fullcfg.yml
+  when: bkptype == "mysqlclient_fullcfg"
+
+- name: swift backup by duplicity
+  include_tasks: swift.yml
+  when: bkptype == "swift"
+
+- name: swift backup by duplicity with prometheus metrics
+  include_tasks: swift_fullcfg.yml
+  when: bkptype == "swift_fullcfg"

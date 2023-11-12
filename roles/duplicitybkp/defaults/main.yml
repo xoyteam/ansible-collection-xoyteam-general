@@ -2,61 +2,6 @@
 # defaults file for backup
 backup_user: "backup"
 backup_dir: "/home/backup"
+bkpprefix: ""
 mysqlbkp_user: "bkp"
 mysqlbkp_pass: "{{ lookup('password', 'credentials/' + mysqlbkp_host + '/mysql_bkp_password length=14 chars=ascii_letters,digits,hexdigits') }}"
-
-#duplicity_fullcfg
-# if password defined - use swift protocol in script
-#backup_swiftpassword: ""
-backup_swiftuser: ""
-backup_swift_authversion: "2"
-backup_swift_authurl: "https://api.selcdn.ru/v2.0"
-backup_exclude_filelist: false
-
-
-#backup_path: "{{ bkp_path }}" # legacy compatibility
-backup_bin_path:  "{{ backup_path }}/bin"
-backup_log_path:  "{{ backup_path }}/log"
-backup_etc_path:  "{{ backup_path }}/etc"
-backup_data_path: "{{ backup_path }}/data"
-
-backup_mysql_config:    "{{ backup_etc_path }}/{{ backup_name }}_mysql"
-backup_mysql_script:    "{{ backup_bin_path }}/{{ backup_name }}_mysql.sh"
-backup_mysql_log:       "{{ backup_log_path }}/{{ backup_name }}_mysql.log"
-backup_mysql_databases: ['all'] #list databases
-backup_mysql_logrotate:
-  - path: "{{ backup_name }}_mysql"
-    conf: |
-      {{ backup_mysql_log }} {
-        daily
-        missingok
-        rotate 7
-        compress
-        delaycompress
-        notifempty
-        create 640 root root
-      }
-
-
-backup_duplicity_script:       "{{ backup_bin_path }}/{{ backup_name }}_duplicity.sh"
-backup_duplicity_exclude_list: "{{ backup_etc_path }}/{{ backup_name }}_duplicity_exclude.list"
-backup_duplicity_extraopts:    ""
-backup_duplicity_log:          "{{ backup_log_path }}/{{ backup_name }}_duplicity.log"
-backup_duplicity_logrotate:
-  - path: "{{ backup_name }}_duplicity"
-    conf: |
-      {{ backup_duplicity_log }} {
-        daily
-        missingok
-        rotate 90
-        compress
-        notifempty
-        create 640 root root
-      }
-
-
-backup_server: "input_ansible_hostname"
-backup_key_path: "{{ backup_etc_path }}/{{ backup_name }}_sshkey"
-backup_dsn: "swift://{{ backup_swiftbucket }}"
-backup_duplicity_src_path: "{{ backup_data_path }}"
-
