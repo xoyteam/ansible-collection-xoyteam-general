@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  mysqld-exporter:
+    image: prom/mysqld-exporter:{{ mysqld_exporter_docker_image_tag }}
+    restart: always
+    volumes:
+      - ./conf:/etc/mysqld-exporter
+    labels:
+      - app=mysqld-exporter
+    command:
+      - --config.my-cnf=/etc/mysqld-exporter/my.cnf
+    networks:
+      - {{ mysqld_exporter_docker_network }}
+    healthcheck:
+      test: wget localhost:9104/metrics -q -O - > /dev/null 2>&1
+
+networks:
+  {{ mysqld_exporter_docker_network }}:
+    external: true

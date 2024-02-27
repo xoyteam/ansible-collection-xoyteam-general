@@ -1,0 +1,19 @@
+---
+- name: Create {{ exporter_name }} directory {{ mysqld_exporter_install_path }}
+  file:
+    path: "{{ mysqld_exporter_install_path }}"
+    state: directory
+
+- name: Install {{ exporter_name }} docker-compose in {{ mysqld_exporter_install_path }}
+  template:
+    src: "docker-compose.yml"
+    dest: "{{ mysqld_exporter_install_path }}/"
+    mode: '0644'
+    backup: yes
+  register: mysqld_exporter_docker_compose
+
+- name: Restart Prometheus Node Exporter
+  docker_compose:
+    project_src: "{{ mysqld_exporter_install_path }}"
+    restarted: yes
+  when: mysqld_exporter_docker_compose.changed

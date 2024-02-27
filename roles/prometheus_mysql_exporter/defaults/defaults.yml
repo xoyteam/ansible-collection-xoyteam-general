@@ -1,0 +1,12 @@
+---
+exporter_name: mysqld-exporter
+mysqld_exporter_type_install: docker
+
+# native
+mysqld_exporter_download_url: https://github.com/prometheus/mysqld_exporter/releases/download/v0.15.1/mysqld_exporter-0.15.1.linux-amd64.tar.gz
+
+# docker
+docker_compose_app_path: /home/server/docker
+mysqld_exporter_install_path: "{{ docker_compose_app_path }}/prometheus_mysqld_exporter"
+mysqld_exporter_docker_image_tag: v0.15.1
+mysqld_exporter_docker_network: monitoring

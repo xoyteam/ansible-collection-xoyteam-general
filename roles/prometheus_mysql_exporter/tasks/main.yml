@@ -1,0 +1,8 @@
+---
+- name: install exporter native
+  ansible.builtin.include_tasks: native.yml
+  when: mysql_exporter_type_install == 'native'
+
+- name: install exporter docker
+  ansible.builtin.include_tasks: docker.yml
+  when: mysql_exporter_type_install == 'docker'
