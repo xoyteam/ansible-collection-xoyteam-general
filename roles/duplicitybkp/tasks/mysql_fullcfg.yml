@@ -1,39 +1,32 @@
 ---
-- name: directory create in /etc
+- name: ensure bin directory exists
   file:
-    path: "/etc/{{ bkpprefix }}mysqlbkp"
+    path: "{{ mysqlbkp_bin_path }}"
     state: directory
-    mode: 0750
-    owner: "root"
-    group: "root"
-
-- name: file create for config
-  file:
-    path: "/etc/{{ bkpprefix }}mysqlbkp/mysql"
-    state: touch
-    mode: 0750
-    owner: "root"
-    group: "root"
+  tags: mysqlbkp_install
 
 - name: script setup
   template:
     src: "mysqlbkp_fullcfg.sh.j2"
-    dest: "/usr/local/sbin/mysqlbkp"
+    dest: "{{ mysqlbkp_bin_name }}"
     mode: 0755
     owner: "root"
     group: "root"
+  tags: mysqlbkp_install
 
 - name: cronjob create
   cron:
     name: "mysql backup by list"
     minute: "03"
     hour: "0"
-    job: /usr/local/sbin/mysqlbkp >/var/log/mysqlbkp.log 2>&1
+    job: "{{ mysqlbkp_bin_name }} >{{ mysqlbkp_log_name }} 2>&1"
+  tags: mysqlbkp_install
 
 - name: logrotate mysqlbkp
   template:
     src: "mysqlbkp.logrotate.j2"
-    dest: "/etc/logrotate.d/mysqlbkp"
+    dest: "/etc/logrotate.d/{{ mysqlbkp_logrotate_name }}"
     mode: 0644
     owner: "root"
     group: "root"
+  tags: mysqlbkp_install

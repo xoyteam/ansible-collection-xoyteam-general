@@ -3,7 +3,8 @@ set -x
 ##create mysql dump for any selected database.
 ###******************************************************************************************###
 
-BkpListFile="/etc/{{ bkpprefix }}mysqlbkp/mysql"
+BkpListFile="{{ mysqlbkp_config_name }}"
+BACKUPNAME="{{ bkp_name }}"
 ###******************************************************************************************###
 MYSQLDUMP="$(command -v mysqldump)"
 GZIP="$(command -v gzip)"
@@ -14,7 +15,7 @@ node_exporter_textfile_dir="/var/lib/node_exporter"
 read -r -d '' METRIC_PREFIX << EOM
 # HELP duplicity_backup frecuency backup
 # TYPE duplicity_backup counter
-duplicity_backup{type="mysql",project="{{ bkp_name }}"}
+duplicity_backup{type="mysql",project="${BACKUPNAME}"}
 EOM
 
 ###******************************************************************************************###
@@ -36,15 +37,15 @@ create_backup_act()
     rc=$?; ARCHIVE_SIZE=$(du -sh "$FILE")
     if [[ $rc == 0 ]]; then echo "$NOW: Backup database $DbName was created, archive size $ARCHIVE_SIZE"; fi
     if [[ $rc == 0 ]]; then
-      if [ -f $node_exporter_textfile_dir/{{ bkp_name }}.prom ]; then
-        cat $node_exporter_textfile_dir/{{ bkp_name }}.prom \
+      if [ -f $node_exporter_textfile_dir/${BACKUPNAME}.prom ]; then
+        cat $node_exporter_textfile_dir/${BACKUPNAME}.prom \
           | grep -v '^\s*#' \
           | awk -v PREFIX="$METRIC_PREFIX" '{a = ++$2; if ( a > 9 ) a = 1; print PREFIX, a}' \
-          | tee $node_exporter_textfile_dir/{{ bkp_name }}.prom.$ >/dev/null
-        mv $node_exporter_textfile_dir/{{ bkp_name }}.prom.$  $node_exporter_textfile_dir/{{ bkp_name }}.prom
+          | tee $node_exporter_textfile_dir/${BACKUPNAME}.prom.$ >/dev/null
+        mv $node_exporter_textfile_dir/${BACKUPNAME}.prom.$  $node_exporter_textfile_dir/${BACKUPNAME}.prom
       else
-        echo -e "${METRIC_PREFIX} 1" > $node_exporter_textfile_dir/{{ bkp_name }}.prom.$
-        mv $node_exporter_textfile_dir/{{ bkp_name }}.prom.$  $node_exporter_textfile_dir/{{ bkp_name }}.prom
+        echo -e "${METRIC_PREFIX} 1" > $node_exporter_textfile_dir/${BACKUPNAME}.prom.$
+        mv $node_exporter_textfile_dir/${BACKUPNAME}.prom.$  $node_exporter_textfile_dir/${BACKUPNAME}.prom
       fi
     fi
   done < $BkpListFile

@@ -2,6 +2,22 @@
 # defaults file for backup
 backup_user: "backup"
 backup_dir: "/home/backup"
-bkpprefix: ""
 mysqlbkp_user: "bkp"
 mysqlbkp_pass: "{{ lookup('password', 'credentials/' + mysqlbkp_host + '/mysql_bkp_password length=14 chars=ascii_letters,digits,hexdigits') }}"
+
+duplicitybkp_path: "/usr/local"
+mysqlbkp_jobname_prefix: ""
+mysqlbkp_config_path: "{{ duplicitybkp_path }}/etc"
+mysqlbkp_config_name: "{{ mysqlbkp_config_path }}/{{ mysqlbkp_jobname_prefix|default('') }}_mysql"
+
+duplicitybkp_data_path: "{{ duplicitybkp_path }}/data"
+mysqlbkp_data_path:     "{{ duplicitybkp_path }}/data/{{ mysqlbkp_jobname_prefix|default('') }}_mysql"
+
+duplicitybkp_bin_path: "{{ duplicitybkp_path }}/bin"
+mysqlbkp_bin_path:     "{{ duplicitybkp_bin_path }}"
+mysqlbkp_bin_name: "{{ mysqlbkp_bin_path }}/{{ mysqlbkp_jobname_prefix|default('') }}_mysql.sh"
+
+duplicitybkp_log_path: "{{ duplicitybkp_path }}/log"
+mysqlbkp_log_path:     "{{ duplicitybkp_log_path }}"
+mysqlbkp_log_name: "{{ mysqlbkp_log_path }}/{{ mysqlbkp_jobname_prefix|default('') }}_mysql.log"
+mysqlbkp_logrotate_name: "{{ mysqlbkp_jobname_prefix|default('') }}_mysql"

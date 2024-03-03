@@ -10,6 +10,7 @@
 - name: backup mysql with all params in cfg
   include_tasks: mysql_fullcfg.yml
   when: bkptype == "mysql_fullcfg"
+  tags: mysqlbkp_install
 
 - name: configure client for mysql backup
   include_tasks: mysqlclient.yml
