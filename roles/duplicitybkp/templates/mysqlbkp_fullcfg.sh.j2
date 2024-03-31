@@ -10,7 +10,7 @@ MYSQLDUMP="$(command -v mysqldump)"
 GZIP="$(command -v gzip)"
 DATE="$(command -v date)"
 NOW=$($DATE +%Y%m%d_%H%M%S)
-node_exporter_textfile_dir="/var/lib/node_exporter"
+node_exporter_textfile_dir="{{ node_exporter_textfile_dir }}"
 
 read -r -d '' METRIC_PREFIX << EOM
 # HELP duplicity_backup frecuency backup

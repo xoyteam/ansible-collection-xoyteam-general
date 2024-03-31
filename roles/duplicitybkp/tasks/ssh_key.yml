@@ -1,0 +1,20 @@
+---
+- name: Generate an OpenSSH keypair
+  community.crypto.openssh_keypair:
+    path: "{{ duplicitybkp_sshkey_name }}"
+    comment: "{{ duplicitybkp_sshkey_jobname_prefix }}@{{ inventory_hostname }}"
+    type: "ed25519"
+    mode: "0600"
+  register: duplicitybkp_sshkey_keygen
+  tags: [ssh_key]
+
+- name: set duplicitybkp authorized key
+  become: false
+  ansible.posix.authorized_key:
+    user: "{{ ansible_user }}"
+    state: present
+    key: "{{ duplicitybkp_sshkey_keygen.public_key }}"
+    comment: "{{ duplicitybkp_sshkey_keygen.comment }}"
+  delegate_to: "{{ duplicitybkp_store_host }}"
+  tags: [ssh_key]
+

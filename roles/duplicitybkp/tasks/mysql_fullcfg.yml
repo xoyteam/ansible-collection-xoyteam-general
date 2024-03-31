@@ -9,7 +9,7 @@
   template:
     src: "mysqlbkp_fullcfg.sh.j2"
     dest: "{{ mysqlbkp_bin_name }}"
-    mode: 0755
+    mode: 0750
     owner: "root"
     group: "root"
   tags: mysqlbkp_install

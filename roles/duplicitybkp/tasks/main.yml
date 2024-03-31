@@ -27,3 +27,13 @@
 - name: swift backup by duplicity with prometheus metrics
   include_tasks: swift_fullcfg.yml
   when: bkptype == "swift_fullcfg"
+
+- name: ssh backup by duplicity with prometheus metrics
+  include_tasks: ssh_key.yml
+  when: bkptype == "ssh_key"
+  tags: [ssh_key]
+
+- name: ssh-rsync backup by duplicity with prometheus metrics
+  import_tasks: duplicitybkp_ssh.yml
+  when: bkptype == "duplicitybkp_ssh"
+  tags: [duplicitybkp_ssh]
