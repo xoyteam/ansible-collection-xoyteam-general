@@ -5,6 +5,7 @@ set -x
 
 BkpListFile="{{ mysqlbkp_config_name }}"
 BACKUPNAME="{{ bkp_name }}"
+COMPRESS="{{ mysqlbkp_compress }}"
 ###******************************************************************************************###
 MYSQLDUMP="$(command -v mysqldump)"
 GZIP="$(command -v gzip)"
@@ -31,9 +32,14 @@ create_backup_act()
     PORT=${BkpItemAsArray[3]}
     USER=${BkpItemAsArray[4]}
     PASSWD=${BkpItemAsArray[5]}
-    FILE="${BackupPath}/${DbName}.sql.gz"
     set -o pipefail
-    $MYSQLDUMP -f -h "${MYSQLSVRHOST}" -P "${PORT}" -u "${USER}" -p"${PASSWD}" --single-transaction "${DbName}" --no-tablespaces | $GZIP -9 > "$FILE"
+    if [ "$COMPRESS" = true ]; then
+      FILE="${BackupPath}/${DbName}.sql.gz"
+      $MYSQLDUMP -f -h "${MYSQLSVRHOST}" -P "${PORT}" -u "${USER}" -p"${PASSWD}" --single-transaction "${DbName}" --no-tablespaces | $GZIP -9 > "$FILE"
+    else
+      FILE="${BackupPath}/${DbName}.sql"
+      $MYSQLDUMP -f -h "${MYSQLSVRHOST}" -P "${PORT}" -u "${USER}" -p"${PASSWD}" --single-transaction "${DbName}" --no-tablespaces > "$FILE"
+    fi
     rc=$?; ARCHIVE_SIZE=$(du -sh "$FILE")
     if [[ $rc == 0 ]]; then echo "$NOW: Backup database $DbName was created, archive size $ARCHIVE_SIZE"; fi
     if [[ $rc == 0 ]]; then
