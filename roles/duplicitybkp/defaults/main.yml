@@ -51,7 +51,7 @@ duplicitybkp_ssh_backup_target: "{{ duplicitybkp_data_path }}"
 duplicitybkp_ssh_store_proto: "rsync"
 #duplicitybkp_ssh_store_user: ""
 #duplicitybkp_ssh_store_host: ""
-duplicitybkp_ssh_store_hostname: "{{ duplicitybkp_ssh_store_hostname }}"
+duplicitybkp_ssh_store_hostname: "{{ duplicitybkp_ssh_store_host }}"
 duplicitybkp_ssh_store_path: "{{ duplicitybkp_ssh_jobname_prefix }}"
 duplicitybkp_ssh_store_dsn: "{{ duplicitybkp_ssh_store_proto }}://{{ duplicitybkp_ssh_store_user }}@{{ duplicitybkp_ssh_store_host }}/{{ duplicitybkp_ssh_store_path }}"
 
