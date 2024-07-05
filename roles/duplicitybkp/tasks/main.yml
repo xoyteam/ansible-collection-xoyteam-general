@@ -1,7 +1,11 @@
 ---
 - name: add duplicity
-  include_tasks: duplicity.yml
-  when: bkptype == "duplicity" or bkptype == "swift"
+  import_tasks: duplicity.yml
+  when: >
+    ( bkptype == 'duplicity' )
+    or ( bkptype == 'duplicitybkp_ssh' )
+    or ( 's3' in bkptype )
+    or ( 'swift' in bkptype )
 
 - name: backup mysql
   include_tasks: mysql.yml
@@ -27,6 +31,10 @@
 - name: swift backup by duplicity with prometheus metrics
   include_tasks: swift_fullcfg.yml
   when: bkptype == "swift_fullcfg"
+
+- name: s3 backup by duplicity with prometheus metrics
+  include_tasks: duplicitybkp_s3.yml
+  when: bkptype == "duplicitybkp_s3"
 
 - name: ssh backup by duplicity with prometheus metrics
   include_tasks: ssh_key.yml
