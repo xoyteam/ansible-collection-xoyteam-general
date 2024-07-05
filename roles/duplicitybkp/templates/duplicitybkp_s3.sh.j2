@@ -1,15 +1,8 @@
 #!/bin/bash
 
 # Авторизационные данные для подключения к хранилищу
-export SWIFT_PASSWORD="{{ backup_swiftpassword }}"
-export SWIFT_AUTHVERSION="{{ duplicitybkp_swift_auth_version }}"
-export SWIFT_TENANTNAME="{{ duplicitybkp_swift_tenantname }}"
-export SWIFT_AUTHURL="{{ duplicitybkp_swift_authurl }}"
-export SWIFT_USERNAME="{{ backup_swiftuser }}"
-export SWIFT_USER_DOMAIN_NAME="{{ duplicitybkp_swift_userdomain }}"
-export SWIFT_PROJECT_DOMAIN_NAME="{{ duplicitybkp_swift_projectdomain }}"
-
-
+export AWS_ACCESS_KEY_ID='{{ duplicitybkp_s3_accesskey }}'
+export AWS_SECRET_ACCESS_KEY='{{ duplicitybkp_s3_secretkey }}'
 
 # Установка переменных
 DATE="$(command -v date)"
@@ -31,8 +24,9 @@ $DUPLICITY \
     --full-if-older-than {{ backup_fullevry|d('30D') }} \
     --exclude-filelist {{ backup_dir }}/{{ backup_name }}/exclude.list \
     {{ backup_extraopts }} \
+    {{ duplicitybkp_s3_opts }} \
     {{ backup_target }} \
-    swift://{{ backup_swiftbucket }}
+    s3://{{ duplicitybkp_s3_bucket }}
 rc=$?;
     if [[ $rc == 0 ]]; then echo "$NOW: Backup database succefully uploaded to S3"; fi
     if [[ $rc == 0 ]]; then
@@ -52,19 +46,16 @@ $DUPLICITY \
     --no-encryption \
     remove-older-than {{ backup_removeolder|d('31D') }} \
     --force \
-    swift://{{ backup_swiftbucket }}
+    {{ duplicitybkp_s3_opts }} \
+    s3://{{ duplicitybkp_s3_bucket }}
 
 $DUPLICITY \
     --no-encryption \
     remove-all-but-n-full {{ backup_fullcopies|d('1') }} \
     --force \
-    swift://{{ backup_swiftbucket }}
+    {{ duplicitybkp_s3_opts }} \
+    s3://{{ duplicitybkp_s3_bucket }}
 
 # Очистка авторизационных данных для безопасности
-unset SWIFT_PASSWORD
-unset SWIFT_AUTHVERSION
-unset SWIFT_TENANTNAME
-unset SWIFT_AUTHURL
-unset SWIFT_USERNAME
-unset SWIFT_USER_DOMAIN_NAME
-unset SWIFT_PROJECT_DOMAIN_NAME
+unset AWS_ACCESS_KEY_ID
+unset AWS_SECRET_ACCESS_KEY
