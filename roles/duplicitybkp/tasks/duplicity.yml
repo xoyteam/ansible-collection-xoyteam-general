@@ -10,6 +10,12 @@
 
 - name: if pip version
   block:
+    - name: install soft
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - librsync-dev
     - name: install pip upgrade
       ansible.builtin.pip:
         name: pip

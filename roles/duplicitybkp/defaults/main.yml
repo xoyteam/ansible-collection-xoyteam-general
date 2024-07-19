@@ -10,6 +10,7 @@ mysqlbkp_compress: false
 duplicitybkp_packages_list_pip:
   - python-keystoneclient==5.2.0
   - python-swiftclient==4.4.0
+  - fasteners==0.19
   - duplicity==2.2.1
 
 
