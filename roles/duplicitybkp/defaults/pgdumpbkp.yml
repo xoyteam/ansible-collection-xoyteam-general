@@ -1,0 +1,20 @@
+---
+#pgdumpbkp_host: ""
+pgdumpbkp_user: "postgres"
+pgdumpbkp_pass: "{{ lookup('password', 'credentials/' + pgdumpbkp_host + '/pgdumpbkp_password length=14 chars=ascii_letters,digits,hexdigits') }}"
+pgdumpbkp_compress: false
+
+pgdumpbkp_jobname_prefix: ""
+
+pgdumpbkp_bin_path:       "{{ duplicitybkp_bin_path  }}"
+pgdumpbkp_bin_name:       "{{    pgdumpbkp_bin_path  }}/{{ pgdumpbkp_jobname_prefix }}_pgdumpbkp.sh"
+pgdumpbkp_config_path:    "{{ duplicitybkp_cfg_path  }}"
+pgdumpbkp_config_name:    "{{ pgdumpbkp_config_path  }}/{{ pgdumpbkp_jobname_prefix }}_pgdumpbkp"
+
+pgdumpbkp_data_path:      "{{ duplicitybkp_data_path }}/{{ pgdumpbkp_jobname_prefix }}_pgdumpbkp"
+
+pgdumpbkp_log_path:       "{{ duplicitybkp_log_path  }}"
+pgdumpbkp_log_name:       "{{    pgdumpbkp_log_path  }}/{{ pgdumpbkp_jobname_prefix }}_pgdumpbkp.log"
+pgdumpbkp_logrotate_name:                              "{{ pgdumpbkp_jobname_prefix }}_pgdumpbkp"
+
+

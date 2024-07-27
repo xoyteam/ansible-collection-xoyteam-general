@@ -1,0 +1,37 @@
+---
+- name: pgdumpbkp | ensure bin directory exists
+  file:
+    path: "{{ pgdumpbkp_bin_path }}"
+    state: directory
+  tags: pgdumpbkp_install
+
+- name: pgdumpbkp | script setup
+  template:
+    src: "pgdumpbkp.sh.j2"
+    dest: "{{ pgdumpbkp_bin_name }}"
+    mode: 0750
+    owner: "root"
+    group: "root"
+  tags: pgdumpbkp_install
+
+- name: pgdumpbkp | cronjob create
+  cron:
+    name: "pgdumpbkp | backup by list"
+    minute: "03"
+    hour: "0"
+    job: "{{ pgdumpbkp_bin_name }} >{{ pgdumpbkp_log_name }} 2>&1"
+  tags: pgdumpbkp_install
+
+- name: pgdumpbkp | logrotate log
+  template:
+    src: "pgdumpbkp.logrotate.j2"
+    dest: "/etc/logrotate.d/{{ pgdumpbkp_logrotate_name }}"
+    mode: 0644
+    owner: "root"
+    group: "root"
+  tags: pgdumpbkp_install
+
+
+
+
+

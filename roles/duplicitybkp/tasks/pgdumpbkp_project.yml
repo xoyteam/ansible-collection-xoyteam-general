@@ -1,0 +1,13 @@
+---
+- name: pgdumpbkp | ensure config directory exists
+  file:
+    path: "{{ pgdumpbkp_config_path }}"
+    state: directory
+
+- name: pgdumpbkp | create list for backup
+  lineinfile:
+    path: "{{ pgdumpbkp_config_name }}"
+    regexp: "{{ pgdumpbkp_db }}.*"
+    line: "{{ pgdumpbkp_db }} {{ pgdumpbkp_data_path }} {{ pgdumpbkp_host }} {{ pgdumpbkp_port }} {{ pgdumpbkp_user }} {{ pgdumpbkp_pass }}"
+    create: true
+

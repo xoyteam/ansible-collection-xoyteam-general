@@ -45,3 +45,16 @@
   import_tasks: duplicitybkp_ssh.yml
   when: bkptype == "duplicitybkp_ssh"
   tags: [duplicitybkp_ssh]
+
+
+
+- name: host wide configurations
+  include_tasks: pgdumpbkp.yml
+  when: bkptype == "pgdumpbkp"
+  tags: [pgdumpbkp]
+
+- name: configure projects for backup
+  include_tasks: pgdumpbkp_project.yml
+  when: bkptype == "pgdumpbkp_project"
+  tags: [pgdumpbkp, pgdumpbkp_project]
+
