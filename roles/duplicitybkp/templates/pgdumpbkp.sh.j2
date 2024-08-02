@@ -3,7 +3,7 @@ set -x
 ##create dump for any selected database.
 ###******************************************************************************************###
 
-BkpListFile="{{ pgdump_config_name }}"
+BkpListFile="{{ pgdumpbkp_config_name }}"
 BACKUPNAME="{{ bkp_name }}"
 COMPRESS="{{ pgdumpbkp_compress }}"
 ###******************************************************************************************###
@@ -16,7 +16,7 @@ node_exporter_textfile_dir="{{ node_exporter_textfile_dir }}"
 read -r -d '' METRIC_PREFIX << EOM
 # HELP duplicity_backup frecuency backup
 # TYPE duplicity_backup counter
-duplicity_backup{type="mysql",project="${BACKUPNAME}"}
+duplicity_backup{type="pgdump",project="${BACKUPNAME}"}
 EOM
 
 ###******************************************************************************************###
@@ -31,14 +31,14 @@ create_backup_act()
     SVRHOST=${BkpItemAsArray[2]}
     PORT=${BkpItemAsArray[3]}
     USER=${BkpItemAsArray[4]}
-    PASSWD=${BkpItemAsArray[5]}
+    export PGPASSWORD=${BkpItemAsArray[5]}
     set -o pipefail
     if [ "$COMPRESS" = true ]; then
       FILE="${BackupPath}/${DbName}.sql.gz"
-      $DBDUMP -h "${SVRHOST}" -p "${PORT}" -U "${USER}" -p"${PASSWD}" "${DbName}" | $GZIP -9 > "$FILE"
+      $DBDUMP -Fp -h "${SVRHOST}" -p "${PORT}" -U "${USER}" -W "${DbName}" | $GZIP -9 > "$FILE"
     else
       FILE="${BackupPath}/${DbName}.sql"
-      $DBDUMP -h "${SVRHOST}" -p "${PORT}" -U "${USER}" -p"${PASSWD}" "${DbName}" > "$FILE"
+      $DBDUMP -Fp -h "${SVRHOST}" -p "${PORT}" -U "${USER}" -W "${DbName}" > "$FILE"
     fi
     rc=$?; ARCHIVE_SIZE=$(du -sh "$FILE")
     if [[ $rc == 0 ]]; then echo "$NOW: Backup database $DbName was created, archive size $ARCHIVE_SIZE"; fi
@@ -55,6 +55,7 @@ create_backup_act()
       fi
     fi
   done < $BkpListFile
+  unset PGPASSWORD
 }
 
 ##_MAIN_

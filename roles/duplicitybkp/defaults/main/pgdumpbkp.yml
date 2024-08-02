@@ -1,10 +1,12 @@
 ---
 #pgdumpbkp_host: ""
+#pgdumpbkp_db: ""
+pgdumpbkp_port: 5432
 pgdumpbkp_user: "postgres"
-pgdumpbkp_pass: "{{ lookup('password', 'credentials/' + pgdumpbkp_host + '/pgdumpbkp_password length=14 chars=ascii_letters,digits,hexdigits') }}"
+pgdumpbkp_pass: "{{ lookup('password', 'credentials/' + inventory_hostname + '/pgdumpbkp_usr-' + pgdumpbkp_user + '_db-' + pgdumpbkp_db + '_password length=14 chars=ascii_letters,digits,hexdigits') }}"
 pgdumpbkp_compress: false
 
-pgdumpbkp_jobname_prefix: ""
+pgdumpbkp_jobname_prefix: "{{ bkp_name }}"
 
 pgdumpbkp_bin_path:       "{{ duplicitybkp_bin_path  }}"
 pgdumpbkp_bin_name:       "{{    pgdumpbkp_bin_path  }}/{{ pgdumpbkp_jobname_prefix }}_pgdumpbkp.sh"

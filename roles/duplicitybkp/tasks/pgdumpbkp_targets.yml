@@ -3,6 +3,16 @@
   file:
     path: "{{ pgdumpbkp_config_path }}"
     state: directory
+  tags: [pgdumpbkp_targets]
+
+- name: pgdumpbkp | ensure config directory exists
+  file:
+    path: "{{ pgdumpbkp_data_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  tags: [pgdumpbkp_targets]
 
 - name: pgdumpbkp | create list for backup
   lineinfile:
@@ -10,4 +20,9 @@
     regexp: "{{ pgdumpbkp_db }}.*"
     line: "{{ pgdumpbkp_db }} {{ pgdumpbkp_data_path }} {{ pgdumpbkp_host }} {{ pgdumpbkp_port }} {{ pgdumpbkp_user }} {{ pgdumpbkp_pass }}"
     create: true
+    owner: root
+    group: root
+    mode: "0600"
+  tags: [pgdumpbkp_targets]
+
 

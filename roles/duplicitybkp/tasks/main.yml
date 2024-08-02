@@ -53,8 +53,8 @@
   when: bkptype == "pgdumpbkp"
   tags: [pgdumpbkp]
 
-- name: configure projects for backup
-  include_tasks: pgdumpbkp_project.yml
-  when: bkptype == "pgdumpbkp_project"
-  tags: [pgdumpbkp, pgdumpbkp_project]
+- name: configure targets (projects) for backup
+  include_tasks: pgdumpbkp_targets.yml
+  when: bkptype == "pgdumpbkp_targets"
+  tags: [pgdumpbkp, pgdumpbkp_targets]
 
