@@ -5,9 +5,9 @@
 _acme-challenge.xn--sdsdsdsdsd.xn--p1ai CNAME  progos.certbot.art.ru
 ```
 
-
+```bash
 # /usr/local/bin/acme.sh --install --home "/etc/acme_sh"
-
+```
 ```bash
 sudo SL_Key="" acme.sh issue --dns dns_selectel -d xn--sdsdsdsds.xn--p1ai -d *.xn--sdsdsdsdsd.xn--p1ai --domain-alias  progocc.certbot.art.ru --home /etc/acme_sh --force
 ```
