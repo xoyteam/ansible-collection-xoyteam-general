@@ -79,7 +79,7 @@ duplicitybkp_ssh_store_dsn: "{{ duplicitybkp_ssh_store_proto }}://{{ duplicitybk
 duplicitybkp_type: swift
 duplicitybkp_volsize: 500
 duplicitybkp_removeolder: "31D"
-duplicitybkp_fullcopies: "31D"
+duplicitybkp_fullcopies: "3"
 duplicitybkp_extraopts: ""
 
 
