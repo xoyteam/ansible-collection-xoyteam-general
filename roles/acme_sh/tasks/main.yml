@@ -1,20 +1,44 @@
 ---
+# need  socat for standalone mode
+- name: check installed acme.sh
+  ansible.builtin.stat:
+    path: "{{ acme_sh_home }}"
+  register: installed_acme
+
 - name: download acme.sh
+  when: installed_acme is defined and installed_acme.stat.isdir == false
   ansible.builtin.get_url:
     url: https://get.acme.sh
-    dest: /usr/local/bin/acme.sh
+    dest: /tmp/get.acme.sh
     mode: 0755
     owner: root
     group: root
+  register: get_acme
 
-- name: install acme.sh
-  ansible.builtin.shell: |
-    /usr/local/bin/acme.sh install -m {{ acme_sh_email }} --home "{{ acme_sh_home }}"
+- name: group actions after update get.acme
+  when: get_acme.changed is defined and get_acme.changed
+  block:
+    - name: install acme.sh
+      ansible.builtin.shell: |
+        /tmp/get.acme.sh install -m {{ acme_sh_email }} --home "{{ acme_sh_home }}"
 
-- name: set default CA
-  ansible.builtin.shell: |
-    /usr/local/bin/acme.sh  set-default-ca --server letsencrypt --home "{{ acme_sh_home }}"
+    - name: set default CA
+      ansible.builtin.shell: |
+        /tmp/get.acme.sh  set-default-ca --server letsencrypt --home "{{ acme_sh_home }}"
 
-- name: register account
-  ansible.builtin.shell: |
-    /usr/local/bin/acme.sh register-account -m {{ acme_sh_email }} --home "{{ acme_sh_home }}"
+    - name: register account
+      ansible.builtin.shell: |
+        /tmp/get.acme.sh register-account -m {{ acme_sh_email }} --home "{{ acme_sh_home }}"
+
+- name: install link acme.sh
+  ansible.builtin.file:
+    src:  "{{ acme_sh_home }}/acme.sh"
+    dest: "/usr/local/bin/acme.sh"
+    state: link
+
+- name: install selectel key
+  ansible.builtin.lineinfile:
+    path:  "{{ acme_sh_home }}/account.conf"
+    regex: '^\s*SL_K'
+    line:  'SL_Key={{ acme_sh_selectel_key }}'
+

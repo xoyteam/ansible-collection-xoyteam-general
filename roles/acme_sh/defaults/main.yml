@@ -1,6 +1,8 @@
 ---
 #acme_sh_email: nobody@example.com
-acme_sh_home: "/etc/acme_sh"
+acme_sh_home: "/opt/acme_sh"
+acme_sh_type: selectel
+#acme_sh_selectel_key: set key in group_vars
 
 
 
