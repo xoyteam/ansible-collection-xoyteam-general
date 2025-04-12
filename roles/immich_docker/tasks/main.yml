@@ -1,0 +1,10 @@
+---
+- name: mkdir
+  ansible.builtin.file:
+    path: "{{ immich_docker_install_path }}"
+    state: directory
+
+- name: get immitch docker-compose
+  ansible.builtin.get_url:
+    url: "{{ immich_docker_compose_url }}"
+    dest: "{{ immich_docker_install_path }}/docker-compose.yml"
