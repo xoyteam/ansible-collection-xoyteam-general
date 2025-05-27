@@ -53,6 +53,31 @@
           - python-boto3
       when:
         - "'s3' in bkptype"
+  rescue:
+    - name: python3 install soft
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - duplicity
+          - python3-pip
+
+    - name: python3 install soft for swift
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - python-swiftclient
+      when: "'swift' in bkptype"
+
+    - name: python3 install soft for s3
+      apt:
+        name: "{{ packages }}"
+      vars:
+        packages:
+          - python3-boto3
+      when:
+        - "'s3' in bkptype"
   when:
     - duplicitybkp_bin_type == 'deb'
 
@@ -69,7 +94,7 @@
     group: "{{ backup_user }}"
     mode:  0770
   loop:
-    - "{{ backup_dir }}"
-    - "{{ backup_dir }}/{{ backup_name }}"
-    - "{{ backup_dir }}/{{ backup_name }}/files"
-    - "{{ backup_dir }}/{{ backup_name }}/databases"
+    - "{{ duplicitybkp_bin_path }}"
+    - "{{ duplicitybkp_cfg_path }}"
+    - "{{ duplicitybkp_data_path }}"
+    - "{{ duplicitybkp_log_path }}"

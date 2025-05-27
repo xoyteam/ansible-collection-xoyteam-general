@@ -2,7 +2,6 @@
 # defaults file for backup
 bkp_name: "test"
 backup_user: "backup"
-backup_dir: "/home/backup"
 mysqlbkp_user: "bkp"
 mysqlbkp_pass: "{{ lookup('password', 'credentials/' + mysqlbkp_host + '/mysql_bkp_password length=14 chars=ascii_letters,digits,hexdigits') }}"
 mysqlbkp_compress: false
@@ -19,6 +18,7 @@ duplicitybkp_duplicity_path: /usr/bin/duplicity
 duplicitybkp_bin_type: deb
 
 duplicitybkp_path: "/usr/local"
+backup_dir: "{{ duplicitybkp_path }}"
 duplicitybkp_bin_path:  "{{ duplicitybkp_path }}/bin"
 duplicitybkp_cfg_path:  "{{ duplicitybkp_path }}/etc"
 duplicitybkp_data_path: "{{ duplicitybkp_path }}/data"

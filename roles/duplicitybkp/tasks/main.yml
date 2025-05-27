@@ -1,4 +1,10 @@
 ---
+
+- name: debug
+  ansible.builtin.debug:
+    var: bkptype
+    verbosity: 1
+
 - name: add duplicity
   import_tasks: duplicity.yml
   when: >
@@ -6,6 +12,7 @@
     or ( bkptype == 'duplicitybkp_ssh' )
     or ( 's3' in bkptype )
     or ( 'swift' in bkptype )
+    or ( 'ssh_key' in bkptype )
 
 - name: backup mysql
   include_tasks: mysql.yml
