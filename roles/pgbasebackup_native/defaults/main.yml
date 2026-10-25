@@ -1,0 +1,42 @@
+---
+# need pre installed
+#bkp_name: "test"
+#backup_dir: "{{ duplicitybkp_path }}"
+
+
+# defaults file for backup
+pgbinbkp_pghost: 127.0.0.1
+pgbinbkp_pgport: 5432
+pgbinbkp_pguser: postgres
+
+# Path to the live PostgreSQL data directory on the target host. Required.
+pgbinbkp_pgdata: ""
+
+# Extra free space reserve on top of the PGDATA size, percent.
+pgbinbkp_space_margin_percent: 20
+
+# PostgreSQL password. Required; pass it from vault/secret manager.
+pgbinbkp_pgpass: ""
+
+duplicitybkp_path:      "{{ backup_dir|default('/home/backup') }}"
+duplicitybkp_bin_path:  "{{ duplicitybkp_path }}/bin"
+duplicitybkp_cfg_path:  "{{ duplicitybkp_path }}/etc"
+duplicitybkp_data_path: "{{ duplicitybkp_path }}/data"
+duplicitybkp_log_path:  "{{ duplicitybkp_path }}/log"
+
+pgbinbkp_jobname_prefix: "{{ bkp_name }}"
+pgbinbkp_jobname:        "{{ pgbinbkp_jobname_prefix }}_pgbasebackup"
+pgbinbkp_config_path:    "{{ duplicitybkp_cfg_path  }}"
+#pgbinbkp_config_name:   "{{  pgbinbkp_config_path  }}/{{ pgbinbkp_jobname }}.conf"
+pgbinbkp_data_path:      "{{ duplicitybkp_data_path }}/{{ pgbinbkp_jobname }}"
+pgbinbkp_bin_path:       "{{ duplicitybkp_bin_path  }}"
+pgbinbkp_bin_name:       "{{     pgbinbkp_bin_path  }}/{{ pgbinbkp_jobname }}.sh"
+pgbinbkp_log_path:       "{{ duplicitybkp_log_path  }}"
+pgbinbkp_log_name:       "{{     pgbinbkp_log_path  }}/{{ pgbinbkp_jobname }}.log"
+pgbinbkp_logrotate_name: "{{ pgbinbkp_jobname }}"
+
+pgbinbkp_basebackup_options: "-c fast"
+
+pgbinbkp_cron_minute: "03"
+pgbinbkp_cron_hour: "0"
+
