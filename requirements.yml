@@ -1,23 +1,11 @@
+---
+# Collections required by the roles of this collection and by the Molecule
+# docker driver. Old role-based requirements (Bitbucket/cloudalchemy/grafana)
+# were removed: they are not used by any current role.
 collections:
-  - name: community.grafana
-    version: "1.3.3"
-  - name: beerfranz.wtu_apps
-    version: "0.0.4"
+  - name: community.crypto
+    version: ">=2.0.0"
+  - name: ansible.posix
+    version: ">=1.4.0"
   - name: community.docker
-    version: ">=1.6.1,<1.7.0"
-  - name: xoyteam.docker_compose_apps
-    version: ">=1.1.0,<2.0.0"
-
-roles:
-  - name: cloudalchemy.node_exporter
-    src: git@github.com:xoyteam/ansible-node-exporter.git
-    scm: git
-    version: "master"
-  - name: cloudalchemy.blackbox-exporter
-    version: "1.0.0"
-  - name: jnv.unattended-upgrades
-    version: "v1.12.1"
-  - name: duplicitybkp
-    src: git@bitbucket.org:xoy/duplicitybkp.git
-    scm: git
-    version: "v1.0"
+    version: ">=3.10.2"

@@ -99,8 +99,8 @@ cron и logrotate; для MySQL — скрипт `mysqldump` и конфиг с�
 cron-задания и перезаписывают конфиги. Для проверки достаточно
 `ansible-playbook --syntax-check`.
 
-`requirements.yml` в репозитории устарел (ссылается на старые роли и Bitbucket);
-перед использованием обновите его под свой проект.
+`requirements.yml` содержит актуальные коллекции (`community.crypto`,
+`ansible.posix`, `community.docker`); устаревшие role-зависимости из него удалены.
 
 ---
 
@@ -112,6 +112,7 @@ Docker внутри инстанса не требует: `verify.yml` подк�
 
 ```bash
 python -m pip install -r requirements-molecule.txt
+ansible-galaxy collection install -r requirements.yml  # docker-driver deps
 molecule test -s pgbasebackup_extdkr
 ```
 
