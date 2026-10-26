@@ -112,7 +112,6 @@ Docker внутри инстанса не требует: `verify.yml` подк�
 
 ```bash
 python -m pip install -r requirements-molecule.txt
-ansible-galaxy collection install community.docker   # нужен docker-драйверу
 molecule test -s pgbasebackup_extdkr
 ```
 
