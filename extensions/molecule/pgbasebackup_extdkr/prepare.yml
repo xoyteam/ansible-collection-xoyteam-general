@@ -1,0 +1,14 @@
+---
+- name: Prepare
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Install cron and logrotate
+      ansible.builtin.apt:
+        name:
+          - cron
+          - logrotate
+        state: present
+        update_cache: true
+        cache_valid_time: 3600

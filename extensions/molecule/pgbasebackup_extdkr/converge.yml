@@ -1,0 +1,28 @@
+---
+# Two jobs are converged to cover both network modes:
+#   molecule     - network namespace of the DB container (container:<db>)
+#   molecule-net - external docker network (pgextdkr_network)
+- name: Converge
+  hosts: all
+  become: true
+  vars:
+    backup_dir: /var/backups/pg
+    postgres_version: "16"
+    pgextdkr_pgpass: change-me
+    pgextdkr_pull_image: false
+    node_exporter_textfile_dir: /var/lib/node_exporter/textfile
+  tasks:
+    - name: Converge job in the container network namespace
+      ansible.builtin.include_role:
+        name: xoyteam.general.pgbasebackup_extdkr
+      vars:
+        bkp_name: molecule
+        pgextdkr_db_container: test-db
+
+    - name: Converge job in an external docker network
+      ansible.builtin.include_role:
+        name: xoyteam.general.pgbasebackup_extdkr
+      vars:
+        bkp_name: molecule-net
+        pgextdkr_network: backupnet
+        pgextdkr_pghost: postgres

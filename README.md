@@ -104,6 +104,32 @@ cron-задания и перезаписывают конфиги. Для пр�
 
 ---
 
+## Тестирование (Molecule)
+
+Для роли `pgbasebackup_extdkr` есть Molecule-сценарий
+`extensions/molecule/pgbasebackup_extdkr`. Нужен Docker на хосте (сам сценарий
+Docker внутри инстанса не требует: `verify.yml` подкладывает fake `docker` CLI).
+
+```bash
+python -m pip install -r requirements-molecule.txt
+ansible-galaxy collection install community.docker   # нужен docker-драйверу
+molecule test -s pgbasebackup_extdkr
+```
+
+Сценарий:
+
+* `converge.yml` — применяет роль дважды: задание в netns контейнера БД
+  (`container:<db>`) и задание с внешней docker-сетью;
+* `idempotence` — проверяет, что повторный прогон ничего не меняет;
+* `verify.yml` — проверяет права (`0700`/`0600`/`0640`), рендер compose, отсутствие
+  пароля в скрипте, cron/logrotate, запускает скрипт с fake docker: создание копии,
+  счётчик/timestamp/duration метрик, удаление недописанной копии при ошибке.
+
+Полноценный бэкап реального PostgreSQL Molecule-сценарий не выполняет — для этого
+нужен отдельный стенд с БД и Docker socket.
+
+---
+
 ## Лицензия
 
 GPL-3.0-or-later. См. [LICENSE](LICENSE).

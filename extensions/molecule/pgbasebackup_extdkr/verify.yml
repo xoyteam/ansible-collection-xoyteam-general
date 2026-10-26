@@ -1,0 +1,180 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    backup_root: /var/backups/pg
+    metric_dir: /var/lib/node_exporter/textfile
+    job_netns: molecule_pgbasebackup
+    job_net: molecule-net_pgbasebackup
+  tasks:
+    - name: Install fake docker CLI for the backup script test
+      ansible.builtin.copy:
+        src: docker-stub
+        dest: /usr/local/bin/docker
+        mode: "0755"
+
+    - name: Collect expected artifacts
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ backup_root }}/bin/{{ job_netns }}.sh"
+        - "{{ backup_root }}/bin/{{ job_net }}.sh"
+        - "{{ backup_root }}/compose/{{ job_netns }}/compose.yml"
+        - "{{ backup_root }}/compose/{{ job_netns }}/pgpass.env"
+        - "{{ backup_root }}/compose/{{ job_net }}/compose.yml"
+        - "{{ backup_root }}/compose/{{ job_net }}/pgpass.env"
+        - "{{ backup_root }}/log/{{ job_netns }}.log"
+        - "{{ backup_root }}/data/{{ job_netns }}"
+        - "{{ backup_root }}/data/{{ job_net }}"
+        - "/etc/logrotate.d/{{ job_netns }}"
+        - "/etc/logrotate.d/{{ job_net }}"
+        - "{{ metric_dir }}"
+      register: pgextdkr_artifacts
+
+    - name: Assert all expected artifacts exist
+      ansible.builtin.assert:
+        that:
+          - pgextdkr_artifacts.results | selectattr('stat.exists') | list | length == pgextdkr_artifacts.results | length
+
+    - name: Stat security-sensitive artifacts
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ backup_root }}/bin/{{ job_netns }}.sh"
+        - "{{ backup_root }}/compose/{{ job_netns }}/compose.yml"
+        - "{{ backup_root }}/compose/{{ job_netns }}/pgpass.env"
+        - "{{ backup_root }}/log/{{ job_netns }}.log"
+        - "{{ metric_dir }}"
+      register: pgextdkr_modes
+
+    - name: Assert file modes
+      ansible.builtin.assert:
+        that:
+          - pgextdkr_modes.results[0].stat.mode == "0700"
+          - pgextdkr_modes.results[1].stat.mode == "0600"
+          - pgextdkr_modes.results[2].stat.mode == "0600"
+          - pgextdkr_modes.results[3].stat.mode == "0640"
+          - pgextdkr_modes.results[4].stat.mode == "0755"
+
+    - name: Read rendered files
+      ansible.builtin.slurp:
+        src: "{{ item }}"
+      loop:
+        - "{{ backup_root }}/compose/{{ job_netns }}/compose.yml"
+        - "{{ backup_root }}/compose/{{ job_net }}/compose.yml"
+        - "{{ backup_root }}/compose/{{ job_netns }}/pgpass.env"
+        - "{{ backup_root }}/bin/{{ job_netns }}.sh"
+        - "/etc/logrotate.d/{{ job_netns }}"
+      register: pgextdkr_files
+
+    - name: Assert compose and script contents
+      ansible.builtin.assert:
+        that:
+          - "'profiles: [\"backup\"]' in (pgextdkr_files.results[0].content | b64decode)"
+          - "'restart: \"no\"' in (pgextdkr_files.results[0].content | b64decode)"
+          - "'network_mode: \"container:${PGBACKUP_DB_CONTAINER' in (pgextdkr_files.results[0].content | b64decode)"
+          - "'external: true' in (pgextdkr_files.results[1].content | b64decode)"
+          - "'name: backupnet' in (pgextdkr_files.results[1].content | b64decode)"
+          - pgextdkr_files.results[2].content | b64decode == "PGPASSWORD=change-me\n"
+          - "'change-me' not in (pgextdkr_files.results[3].content | b64decode)"
+          - "'flock -n 9' in (pgextdkr_files.results[3].content | b64decode)"
+          - "'docker' in (pgextdkr_files.results[3].content | b64decode)"
+          - "'create 640 root root' in (pgextdkr_files.results[4].content | b64decode)"
+
+    - name: Run backup script in the container network mode (first run)
+      ansible.builtin.command:
+        cmd: "{{ backup_root }}/bin/{{ job_netns }}.sh"
+      register: pgextdkr_run_first
+      changed_when: false
+      failed_when: pgextdkr_run_first.rc != 0
+
+    - name: Run backup script in the container network mode (second run)
+      ansible.builtin.command:
+        cmd: "{{ backup_root }}/bin/{{ job_netns }}.sh"
+      register: pgextdkr_run_second
+      changed_when: false
+      failed_when: pgextdkr_run_second.rc != 0
+
+    - name: Run backup script in the external network mode
+      ansible.builtin.command:
+        cmd: "{{ backup_root }}/bin/{{ job_net }}.sh"
+      register: pgextdkr_run_net
+      changed_when: false
+      failed_when: pgextdkr_run_net.rc != 0
+
+    - name: Stat backup data
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      loop:
+        - "{{ backup_root }}/data/{{ job_netns }}"
+        - "{{ backup_root }}/data/{{ job_netns }}/PG_VERSION"
+        - "{{ metric_dir }}/{{ job_netns }}.prom"
+      register: pgextdkr_data
+
+    - name: Assert backup data and metric file
+      ansible.builtin.assert:
+        that:
+          - pgextdkr_data.results[0].stat.mode == "0700"
+          - pgextdkr_data.results[1].stat.exists
+          - pgextdkr_data.results[1].stat.mode == "0600"
+          - pgextdkr_data.results[2].stat.exists
+          - pgextdkr_data.results[2].stat.mode == "0644"
+
+    - name: Check metric counter
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -F
+          - 'duplicity_backup{type="pg_basebackup_extdkr",project="molecule_pgbasebackup"} 2'
+          - "{{ metric_dir }}/{{ job_netns }}.prom"
+      changed_when: false
+
+    - name: Check metric timestamp
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -F
+          - 'duplicity_backup_last_success_timestamp_seconds{type="pg_basebackup_extdkr",project="molecule_pgbasebackup"}'
+          - "{{ metric_dir }}/{{ job_netns }}.prom"
+      changed_when: false
+
+    - name: Check metric duration
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -F
+          - 'duplicity_backup_duration_seconds{type="pg_basebackup_extdkr",project="molecule_pgbasebackup"}'
+          - "{{ metric_dir }}/{{ job_netns }}.prom"
+      changed_when: false
+
+    - name: Run backup script with a failing fake docker
+      ansible.builtin.command:
+        cmd: "{{ backup_root }}/bin/{{ job_netns }}.sh"
+      environment:
+        FAKE_DOCKER_FAIL: "1"
+      register: pgextdkr_run_fail
+      changed_when: false
+      failed_when: pgextdkr_run_fail.rc != 1
+
+    - name: Check the incomplete backup was removed
+      ansible.builtin.stat:
+        path: "{{ backup_root }}/data/{{ job_netns }}"
+      register: pgextdkr_failed_data
+
+    - name: Assert failed run left no incomplete backup
+      ansible.builtin.assert:
+        that:
+          - not pgextdkr_failed_data.stat.exists
+
+    - name: Check the cron jobs were installed
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -R
+          - -q
+          - "pg_basebackup docker compose job"
+          - /var/spool/cron/crontabs
+          - /etc/cron.d
+      changed_when: false

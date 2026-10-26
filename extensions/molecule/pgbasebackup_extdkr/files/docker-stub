@@ -1,0 +1,86 @@
+#!/bin/bash
+# Minimal docker CLI stub used by molecule verify to exercise the backup script
+# without a real docker daemon or PostgreSQL. It creates PG_VERSION in the
+# directory that compose.yml mounts as /backup, so the script can finish and
+# write metrics. Set FAKE_DOCKER_FAIL=1 to simulate a pg_basebackup failure.
+set -u
+
+cmd="${1:-}"
+shift || true
+
+case "$cmd" in
+  info)
+    echo "Server Version: fake-molecule"
+    exit 0
+    ;;
+  compose)
+    if [ "${1:-}" = "version" ]; then
+      echo "Docker Compose version v2.36.0"
+      exit 0
+    fi
+    file=""
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        -f)
+          file="${2:-}"
+          shift 2
+          ;;
+        -p)
+          shift 2
+          ;;
+        run)
+          shift
+          break
+          ;;
+        *)
+          shift
+          ;;
+      esac
+    done
+    if [ "${FAKE_DOCKER_FAIL:-0}" = "1" ]; then
+      echo "fake docker: pg_basebackup failed" >&2
+      exit 3
+    fi
+    if [ -z "$file" ] || [ ! -f "$file" ]; then
+      echo "fake docker: compose file not found: ${file:-<unset>}" >&2
+      exit 2
+    fi
+    src="$(sed -n 's/^ *- "\(.*\):\/backup:rw"$/\1/p' "$file" | head -n 1)"
+    if [ -z "$src" ]; then
+      echo "fake docker: no backup volume in $file" >&2
+      exit 2
+    fi
+    mkdir -p -- "$src"
+    printf 'fake pgdata\n' > "$src/PG_VERSION"
+    echo "fake pg_basebackup: wrote $src/PG_VERSION"
+    exit 0
+    ;;
+  ps)
+    echo "testdb postgres:16"
+    exit 0
+    ;;
+  inspect)
+    if [ "${1:-}" = "-f" ]; then
+      template="${2:-}"
+      shift 2
+    else
+      template=""
+    fi
+    case "$template" in
+      *State.Running*) echo "true" ;;
+      *Config.Image*) echo "postgres:16" ;;
+      *)
+        echo "fake docker: unsupported inspect template: $template" >&2
+        exit 1
+        ;;
+    esac
+    exit 0
+    ;;
+  exec)
+    printf '2048\t/var/lib/postgresql/data\n'
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac
