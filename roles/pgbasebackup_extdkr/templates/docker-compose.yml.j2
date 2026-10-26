@@ -1,0 +1,32 @@
+# Rendered by xoyteam.general.pgbasebackup_extdkr.
+# The one-off backup service lives in its own compose project, not in the
+# database project. PGBACKUP_IMAGE and PGBACKUP_DB_CONTAINER are exported by
+# script.sh at run time; the service is never started by `docker compose up`
+# because it belongs to the "backup" profile.
+name: {{ pgextdkr_compose_project }}
+
+services:
+  {{ pgextdkr_compose_service }}:
+    image: "${PGBACKUP_IMAGE:?PGBACKUP_IMAGE must be set by script.sh}"
+    restart: "no"
+    profiles: ["backup"]
+    user: "{{ pgextdkr_container_user }}"
+    env_file:
+      - ./pgpass.env
+    volumes:
+      - "{{ pgextdkr_data_path }}:/backup:rw"
+    working_dir: /backup
+    entrypoint: ["pg_basebackup"]
+{% if pgextdkr_network | length > 0 %}
+    networks:
+      - backup
+{% else %}
+    network_mode: "container:${PGBACKUP_DB_CONTAINER:?PGBACKUP_DB_CONTAINER must be set by script.sh}"
+{% endif %}
+{% if pgextdkr_network | length > 0 %}
+
+networks:
+  backup:
+    external: true
+    name: {{ pgextdkr_network }}
+{% endif %}

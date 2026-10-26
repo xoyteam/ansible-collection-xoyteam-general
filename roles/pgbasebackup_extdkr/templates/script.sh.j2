@@ -1,0 +1,269 @@
+#!/bin/bash
+set -Eeuo pipefail
+###******************************************************************************************###
+# Physical PostgreSQL backup in a short-lived container of a dedicated compose
+# project. The container is separate from the database container: it either
+# joins the DB network namespace (container:<db>) or an external docker network.
+# The password is not present in this script; it is read by docker compose from
+# pgpass.env (0600 root:root).
+###******************************************************************************************###
+
+JOBNAME="{{ pgextdkr_jobname }}"
+CURRENT={{ pgextdkr_data_path | quote }}
+COMPOSE_FILE={{ pgextdkr_compose_file | quote }}
+PROJECT="{{ pgextdkr_compose_project }}"
+SERVICE="{{ pgextdkr_compose_service }}"
+DB_CONTAINER={{ pgextdkr_db_container | quote }}
+IMAGE={{ pgextdkr_image | quote }}
+POSTGRES_VERSION="{{ postgres_version | default('') }}"
+NETWORK={{ pgextdkr_network | quote }}
+CONTAINER_USER="{{ pgextdkr_container_user }}"
+DOCKER="{{ pgextdkr_docker_bin }}"
+PGDATA={{ pgextdkr_pgdata | quote }}
+PGHOST="{{ pgextdkr_pghost }}"
+PGPORT="{{ pgextdkr_pgport }}"
+PGUSER="{{ pgextdkr_pguser }}"
+PG_BASEBACKUP_OPTIONS="{{ pgextdkr_basebackup_options }}"
+SPACE_MARGIN_PERCENT="{{ pgextdkr_space_margin_percent | default(20) }}"
+MIN_FREE_KB="{{ pgextdkr_min_free_kb | default(0) }}"
+NODE_EXPORTER_DIR={{ node_exporter_textfile_dir | default('') | quote }}
+LOCK_FILE={{ pgextdkr_lock_file | quote }}
+###******************************************************************************************###
+
+DATE="$(command -v date)"
+START_EPOCH=$($DATE +%s)
+METRIC_TYPE="pg_basebackup_extdkr"
+
+log() {
+  printf '%s %s\n' "$($DATE -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+die() {
+  log "ERROR: $*" >&2
+  exit 1
+}
+
+detect_pg_version() {
+  local v=""
+  if command -v psql >/dev/null 2>&1; then
+    v=$(psql --version 2>/dev/null | sed -n 's/.*PostgreSQL[^0-9]*\([0-9][0-9]*\).*/\1/p')
+  fi
+  if [ -z "$v" ] && command -v pg_config >/dev/null 2>&1; then
+    v=$(pg_config --version 2>/dev/null | sed -n 's/.*PostgreSQL[^0-9]*\([0-9][0-9]*\).*/\1/p')
+  fi
+  if [ -z "$v" ] && command -v postgres >/dev/null 2>&1; then
+    v=$(postgres --version 2>/dev/null | sed -n 's/.*PostgreSQL[^0-9]*\([0-9][0-9]*\).*/\1/p')
+  fi
+  if [ -z "$v" ]; then
+    local bin
+    for bin in /usr/lib/postgresql/*/bin/postgres; do
+      [ -x "$bin" ] || continue
+      v=$("$bin" --version 2>/dev/null | sed -n 's/.*PostgreSQL[^0-9]*\([0-9][0-9]*\).*/\1/p')
+      [ -n "$v" ] && break
+    done
+  fi
+  printf '%s' "$v"
+}
+
+write_metric() {
+  [ -n "$NODE_EXPORTER_DIR" ] || { log "node_exporter_textfile_dir is not set; metric not updated" >&2; return 0; }
+  [ -d "$NODE_EXPORTER_DIR" ] || { log "node_exporter_textfile_dir does not exist: $NODE_EXPORTER_DIR; metric not updated" >&2; return 0; }
+
+  local file="$NODE_EXPORTER_DIR/${JOBNAME}.prom"
+  local tmp="$NODE_EXPORTER_DIR/.${JOBNAME}.prom.$$"
+  local prev=0
+  local now
+  local duration
+
+  if [ -f "$file" ]; then
+    prev=$(awk '/^duplicity_backup\{/ {print $NF}' "$file" 2>/dev/null | head -n 1 || true)
+  fi
+  case "${prev:-}" in
+    ''|*[!0-9]*) prev=0 ;;
+  esac
+  prev=$(( prev % 9 + 1 ))
+  now=$($DATE +%s)
+  duration=$(( now - START_EPOCH ))
+
+  {
+    printf '# HELP duplicity_backup Backup run counter (cycles 1..9)\n'
+    printf '# TYPE duplicity_backup counter\n'
+    printf 'duplicity_backup{type="%s",project="%s"} %s\n' "$METRIC_TYPE" "$JOBNAME" "$prev"
+    printf '# HELP duplicity_backup_last_success_timestamp_seconds Unix time of the last successful backup\n'
+    printf '# TYPE duplicity_backup_last_success_timestamp_seconds gauge\n'
+    printf 'duplicity_backup_last_success_timestamp_seconds{type="%s",project="%s"} %s\n' "$METRIC_TYPE" "$JOBNAME" "$now"
+    printf '# HELP duplicity_backup_duration_seconds Duration of the last successful backup\n'
+    printf '# TYPE duplicity_backup_duration_seconds gauge\n'
+    printf 'duplicity_backup_duration_seconds{type="%s",project="%s"} %s\n' "$METRIC_TYPE" "$JOBNAME" "$duration"
+  } > "$tmp"
+  chmod 0644 -- "$tmp"
+  mv -f -- "$tmp" "$file"
+}
+
+REPLACING=0
+SUCCESS=0
+
+cleanup() {
+  local rc=$?
+  trap - EXIT
+  if [ "$REPLACING" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then
+    log "removing incomplete backup $CURRENT" >&2
+    rm -rf -- "${CURRENT:?}"
+  fi
+  exit "$rc"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+###******************************************************************************************###
+# Safety checks
+###******************************************************************************************###
+if [ -z "$CURRENT" ] || [ "$CURRENT" = "/" ]; then
+  die "refusing unsafe backup path: '$CURRENT'"
+fi
+
+command -v "$DOCKER" >/dev/null 2>&1 || die "docker binary not found: $DOCKER"
+"$DOCKER" compose version >/dev/null 2>&1 || die "docker compose v2 is not available"
+[ -f "$COMPOSE_FILE" ] || die "compose file not found: $COMPOSE_FILE"
+command -v flock >/dev/null 2>&1 || die "flock is not available"
+
+###******************************************************************************************###
+# Serialize runs (and, if the same lock is used, duplicity)
+###******************************************************************************************###
+mkdir -p -- "$(dirname -- "$LOCK_FILE")"
+exec 9>"$LOCK_FILE" || die "cannot open lock file: $LOCK_FILE"
+if ! flock -n 9; then
+  log "another backup is already running (lock $LOCK_FILE); exiting"
+  exit 75
+fi
+
+###******************************************************************************************###
+# Resolve the DB container (explicit, auto-detected, or external DB)
+###******************************************************************************************###
+if [ -z "$DB_CONTAINER" ]; then
+  mapfile -t pg_candidates < <("$DOCKER" ps --format '{% raw %}{{.Names}} {{.Image}}{% endraw %}' 2>/dev/null | awk '$2 ~ /(^|\/)postgres(ql)?(:|@|$)/ {print $1}')
+  set -- "${pg_candidates[@]}"
+  if [ "$#" -eq 0 ]; then
+    if [ -z "$NETWORK" ]; then
+      die "no running PostgreSQL container found; set pgextdkr_db_container, or pgextdkr_network + pgextdkr_pghost for an external DB"
+    fi
+  elif [ "$#" -eq 1 ]; then
+    DB_CONTAINER="$1"
+  elif [ -n "$POSTGRES_VERSION" ]; then
+    mapfile -t pg_matched < <("$DOCKER" ps --format '{% raw %}{{.Names}} {{.Image}}{% endraw %}' 2>/dev/null | awk -v v="$POSTGRES_VERSION" '$2 ~ ("(^|/)postgres(ql)?:" v "([.-]|$)") {print $1}')
+    set -- "${pg_matched[@]}"
+    if [ "$#" -eq 1 ]; then
+      DB_CONTAINER="$1"
+    else
+      die "several PostgreSQL containers match version $POSTGRES_VERSION; set pgextdkr_db_container"
+    fi
+  else
+    die "several PostgreSQL containers found; set pgextdkr_db_container or postgres_version"
+  fi
+fi
+
+if [ -n "$DB_CONTAINER" ]; then
+  if [ "$("$DOCKER" inspect -f '{% raw %}{{.State.Running}}{% endraw %}' "$DB_CONTAINER" 2>/dev/null || true)" != "true" ]; then
+    die "DB container is not running: $DB_CONTAINER"
+  fi
+fi
+
+if [ -z "$NETWORK" ] && [ -z "$DB_CONTAINER" ]; then
+  die "pgextdkr_network is empty and no DB container was found; set pgextdkr_db_container or pgextdkr_network"
+fi
+
+###******************************************************************************************###
+# Resolve the image (explicit, from the DB container, or from PG version)
+###******************************************************************************************###
+if [ -z "$IMAGE" ] && [ -n "$DB_CONTAINER" ]; then
+  IMAGE=$("$DOCKER" inspect -f '{% raw %}{{.Config.Image}}{% endraw %}' "$DB_CONTAINER" 2>/dev/null || true)
+fi
+if [ -z "$IMAGE" ]; then
+  if [ -n "$POSTGRES_VERSION" ]; then
+    IMAGE="postgres:${POSTGRES_VERSION}"
+  else
+    DETECTED_VERSION="$(detect_pg_version)"
+    if [ -z "$DETECTED_VERSION" ]; then
+      die "cannot determine PostgreSQL version; set postgres_version or pgextdkr_image"
+    fi
+    IMAGE="postgres:${DETECTED_VERSION}"
+    log "image not set; detected PostgreSQL $DETECTED_VERSION on host"
+  fi
+fi
+log "job=$JOBNAME image=$IMAGE db_container=${DB_CONTAINER:-<external>} backup=$CURRENT"
+
+###******************************************************************************************###
+# Free space check before deleting the current copy
+###******************************************************************************************###
+case "${SPACE_MARGIN_PERCENT:-}" in
+  ''|*[!0-9]*) SPACE_MARGIN_PERCENT=20 ;;
+esac
+case "${MIN_FREE_KB:-}" in
+  ''|*[!0-9]*) MIN_FREE_KB=0 ;;
+esac
+
+need_kb=0
+if [ -n "$DB_CONTAINER" ] && [ -n "$PGDATA" ]; then
+  need_kb="$("$DOCKER" exec "$DB_CONTAINER" du -sk "$PGDATA" 2>/dev/null | awk '{print $1}' || true)"
+fi
+case "${need_kb:-}" in
+  ''|*[!0-9]*) need_kb=0 ;;
+esac
+if [ "$need_kb" -eq 0 ] && [ -d "$CURRENT" ]; then
+  need_kb=$(du -sk -- "$CURRENT" | awk '{print $1}')
+fi
+if [ "$need_kb" -eq 0 ]; then
+  need_kb="$MIN_FREE_KB"
+fi
+
+if [ "$need_kb" -gt 0 ]; then
+  need_kb=$(( need_kb + need_kb * SPACE_MARGIN_PERCENT / 100 ))
+  avail_kb=$(df -Pk -- "$(dirname -- "$CURRENT")" | awk 'NR==2 {print $4}')
+  if [ -d "$CURRENT" ]; then
+    current_kb=$(du -sk -- "$CURRENT" | awk '{print $1}')
+    avail_kb=$(( avail_kb + current_kb ))
+  fi
+  if [ "$avail_kb" -lt "$need_kb" ]; then
+    die "not enough space: need ${need_kb}K, have ${avail_kb}K"
+  fi
+  log "space check ok: need ${need_kb}K, have ${avail_kb}K"
+else
+  log "WARNING: cannot estimate backup size; free space check skipped" >&2
+fi
+
+###******************************************************************************************###
+# Replace the current local backup
+###******************************************************************************************###
+umask 077
+REPLACING=1
+rm -rf -- "${CURRENT:?}"
+mkdir -p -- "$CURRENT"
+chmod 0700 -- "$CURRENT"
+
+set +e
+PGBACKUP_IMAGE="$IMAGE" PGBACKUP_DB_CONTAINER="$DB_CONTAINER" \
+  "$DOCKER" compose -f "$COMPOSE_FILE" -p "$PROJECT" run --rm --no-deps --pull missing \
+    "$SERVICE" -D /backup -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" $PG_BASEBACKUP_OPTIONS 2>&1 \
+  | while IFS= read -r line; do log "$line"; done
+run_rc=${PIPESTATUS[0]}
+set -e
+if [ "$run_rc" -ne 0 ]; then
+  die "pg_basebackup in docker compose failed (rc=$run_rc)"
+fi
+
+chmod -R go-rwx -- "$CURRENT"
+chmod 0700 -- "$CURRENT"
+ARCHIVE_SIZE=$(du -sh -- "$CURRENT" | awk '{print $1}')
+SUCCESS=1
+log "backup created: $CURRENT ($ARCHIVE_SIZE)"
+
+###******************************************************************************************###
+# Metrics: best effort, must not fail an already successful backup
+###******************************************************************************************###
+if ! ( write_metric ); then
+  log "WARNING: failed to update node_exporter metric" >&2
+fi
+
+log "backup finished successfully in $(( $($DATE +%s) - START_EPOCH ))s"
+exit 0

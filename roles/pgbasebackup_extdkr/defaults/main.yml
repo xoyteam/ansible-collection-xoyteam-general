@@ -1,0 +1,77 @@
+---
+# Paths intentionally mirror pgbasebackup_native / pgbasebackup_dkr, so duplicity
+# sees the same layout: <duplicitybkp_path>/{bin,data,log}/<job>.
+duplicitybkp_path:      "{{ backup_dir | default('/home/backup') }}"
+duplicitybkp_bin_path:  "{{ duplicitybkp_path }}/bin"
+duplicitybkp_data_path: "{{ duplicitybkp_path }}/data"
+duplicitybkp_log_path:  "{{ duplicitybkp_path }}/log"
+
+# Kept equal to pgbasebackup_native / pgbasebackup_dkr: all three roles are
+# alternative implementations of the same logical backup, so duplicity paths do
+# not change when the implementation is switched. Use only one of them per job.
+pgextdkr_jobname_prefix: "{{ bkp_name }}"
+pgextdkr_jobname:        "{{ pgextdkr_jobname_prefix }}_pgbasebackup"
+pgextdkr_bin_path:       "{{ duplicitybkp_bin_path }}"
+pgextdkr_bin_name:       "{{ pgextdkr_bin_path }}/{{ pgextdkr_jobname }}.sh"
+pgextdkr_data_path:      "{{ duplicitybkp_data_path }}/{{ pgextdkr_jobname }}"
+pgextdkr_log_path:       "{{ duplicitybkp_log_path }}"
+pgextdkr_log_name:       "{{ pgextdkr_log_path }}/{{ pgextdkr_jobname }}.log"
+pgextdkr_logrotate_name: "{{ pgextdkr_jobname }}"
+
+# One short-lived compose project per job; it never shares the project of the
+# database container. compose.yml and pgpass.env live in a per-job directory.
+pgextdkr_compose_project: "pgbackup-{{ bkp_name }}"
+pgextdkr_compose_dir:     "{{ duplicitybkp_path }}/compose/{{ pgextdkr_jobname }}"
+pgextdkr_compose_file:    "{{ pgextdkr_compose_dir }}/compose.yml"
+pgextdkr_compose_service: "pgbackup"
+pgextdkr_env_file:        "{{ pgextdkr_compose_dir }}/pgpass.env"
+pgextdkr_lock_file:       "/run/lock/pgbackup-{{ pgextdkr_jobname }}.lock"
+
+# Docker/DB settings.
+# pgextdkr_db_container is optional: if empty, the script looks for a single
+# running PostgreSQL container and uses postgres_version to pick one when there
+# are several. When pgextdkr_network is empty, the backup container runs in the
+# network namespace of this container (container:<db>); otherwise it joins the
+# explicitly named external docker network.
+pgextdkr_db_container: ""
+
+# Shared inventory variable with other PostgreSQL roles. Example: "18".
+postgres_version: ""
+
+# Empty -> container:<resolved DB container>; set -> external network name.
+pgextdkr_network: ""
+
+# Empty -> image of the DB container (resolved by the script), then
+# postgres:<postgres_version>.
+pgextdkr_image: ""
+pgextdkr_container_user: "0:0"
+pgextdkr_docker_bin: "docker"
+
+# PostgreSQL connection as seen from the backup container.
+# PGDATA is the path inside the DB container; it is used only to estimate the
+# backup size through `docker exec du`.
+pgextdkr_pgdata:             "/var/lib/postgresql/data"
+pgextdkr_pghost:             "127.0.0.1"
+pgextdkr_pgport:             5432
+pgextdkr_pguser:             "postgres"
+pgextdkr_pgpass:             ""
+pgextdkr_basebackup_options: "-c fast"
+
+# Free space reserve on top of the estimated PGDATA size, percent.
+pgextdkr_space_margin_percent: 20
+# Fallback when the size cannot be estimated via docker exec.
+pgextdkr_min_free_kb: 0
+
+# Pull the image at role apply time when it is known; the script also passes
+# `--pull missing` to `docker compose run`.
+pgextdkr_pull_image: true
+
+pgextdkr_cron_minute: "03"
+pgextdkr_cron_hour:   "0"
+
+# Image that can be resolved without talking to Docker. Empty means it is
+# resolved at backup time from the DB container or postgres_version.
+pgextdkr_effective_image: >-
+  {{ pgextdkr_image
+     if pgextdkr_image | length > 0
+     else ('postgres:' ~ postgres_version if postgres_version | length > 0 else '') }}

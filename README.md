@@ -12,7 +12,7 @@
 > `credentials-crypt/<host>/mysql_bkp_password` рядом с playbook потребляющего
 > проекта (git-crypt); в примерах ниже — только заглушки вида `change-me`.
 
-Версия коллекции: `2.0.0` (тегов нет). CI и тестов в репозитории нет.
+Версия коллекции: `2.1.0` (тегов нет). CI и тестов в репозитории нет.
 
 ---
 
@@ -23,6 +23,7 @@
 | `duplicitybkp` | Диспетчер бэкапов: duplicity в Swift/S3/SSH, `mysqldump` по расписанию, скрипты, cron, logrotate | Рабочая; режим задаётся `bkptype` |
 | `pgbasebackup_native` | Физический бэкап PostgreSQL через `pg_basebackup` на хосте + cron, logrotate, метрика | Рабочая |
 | `pgbasebackup_dkr` | То же, но `pg_basebackup` выполняется в Docker-контейнере; клиент PostgreSQL на хосте не нужен | Рабочая |
+| `pgbasebackup_extdkr` | То же через отдельный короткоживущий compose-проект: `docker compose run --rm`, `flock`, метрики | Рабочая |
 | `install_duplicity` | Заготовка установки duplicity | Пустая, не используется (установка в `duplicitybkp`) |
 | `pg_docker` | PostgreSQL в `docker compose` | Заготовка, handler использует устаревший `docker_compose` v1 |
 | `mysql_server` | MySQL в `docker compose` | Заготовка |
@@ -34,7 +35,7 @@
 | `acme_sh` | Установка `acme.sh` и выпуск сертификатов Let's Encrypt через DNS-01 (Selectel) | Рабочая |
 
 Роль `dkr_pgbackup` удалена в версии `2.0.0`: её заменила `pgbasebackup_dkr`.
-Обе `pgbasebackup_*` и патч `duplicitybkp` синхронизированы с коллекцией
+Роли `pgbasebackup_*` и патч `duplicitybkp` синхронизированы с коллекцией
 `xoyteam.duplicitybkp` (коммиты `556d060`, `718c617`, `ea4db5d`).
 
 ---
@@ -65,8 +66,10 @@ cron и logrotate; для MySQL — скрипт `mysqldump` и конфиг с�
 `node_exporter`. `pgbasebackup_native` использует `pg_basebackup` с хоста,
 `pgbasebackup_dkr` — образ PostgreSQL в Docker (автоопределение контейнера БД,
 образ из контейнера или `postgres:<postgres_version>`, `PGPASSWORD` через
-`--env-file`, а не в аргументах). Локальная копия одна: её должен забрать duplicity
-до следующего запуска. Переменные и примеры — в README ролей.
+`--env-file`, а не в аргументах), `pgbasebackup_extdkr` — отдельный
+короткоживущий compose-проект (`docker compose run --rm`, `flock`, метрики
+`duplicity_backup`, timestamp и duration). Локальная копия одна: её должен
+забрать duplicity до следующего запуска. Переменные и примеры — в README ролей.
 
 ---
 
