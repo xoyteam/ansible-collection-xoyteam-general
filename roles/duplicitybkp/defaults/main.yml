@@ -83,6 +83,21 @@ duplicitybkp_ssh_store_hostname: "{{ duplicitybkp_ssh_store_host }}"
 duplicitybkp_ssh_store_path: "{{ duplicitybkp_ssh_jobname_prefix }}"
 duplicitybkp_ssh_store_dsn: "{{ duplicitybkp_ssh_store_proto }}://{{ duplicitybkp_ssh_store_user }}@{{ duplicitybkp_ssh_store_host }}/{{ duplicitybkp_ssh_store_path }}"
 
+# known_hosts для ssh-режима: скрипт бэкапа выполняется от root, и rsync
+# поднимает ssh от него же — ключ хранилища должен быть в known_hosts.
+# manage: false — не вмешиваться (known_hosts управляется извне).
+duplicitybkp_ssh_known_hosts_manage: true
+# Путь должен соответствовать пользователю, от которого идёт бэкап (cron root).
+duplicitybkp_ssh_known_hosts_path: "/root/.ssh/known_hosts"
+# Явная строка known_hosts ("host ssh-ed25519 AAAA..."): если задана,
+# ssh-keyscan на control-node не вызывается (offline, тесты).
+duplicitybkp_ssh_known_hosts_key: ""
+duplicitybkp_ssh_known_hosts_scan_opts: "-T 10 -t ed25519,rsa"
+# Владелец каталога и файла; переопределяйте вместе с known_hosts_path, если
+# бэкап идёт не от root (например /home/backup/.ssh/known_hosts).
+duplicitybkp_ssh_known_hosts_owner: "root"
+duplicitybkp_ssh_known_hosts_group: "root"
+
 #duplicitybkp_scritptemplate
 duplicitybkp_type: swift
 duplicitybkp_volsize: 500

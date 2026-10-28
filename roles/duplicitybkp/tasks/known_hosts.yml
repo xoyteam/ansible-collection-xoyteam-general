@@ -1,0 +1,120 @@
+---
+# known_hosts для ssh-режима duplicity (rsync over ssh).
+#
+# Скрипт бэкапа запускается по cron от root, а rsync внутри duplicity поднимает
+# ssh уже от этого пользователя. Ключа хранилища в его known_hosts нет, поэтому
+# upload падает с "Host key verification failed" (а из-за отсутствия проверок
+# кода возврата в скрипте это видно только на шаге ретенции).
+#
+# Ключ хранилища снимается ssh-keyscan'ом с control-node: именно оттуда уже
+# работает делегированный authorized_key, то есть доступ к хранилищу есть.
+# Если control-node хранилище не видит (offline, тесты), задайте
+# duplicitybkp_ssh_known_hosts_key или отключите управление.
+#
+# Проверка host key не отключается: StrictHostKeyChecking=no и
+# UserKnownHostsFile=/dev/null здесь не используются.
+
+- name: duplicitybkp_ssh | manage known_hosts of the store host
+  when: duplicitybkp_ssh_known_hosts_manage | bool
+  tags: [duplicitybkp_ssh, duplicitybkp_known_hosts]
+  block:
+
+    - name: duplicitybkp_ssh | require store host for known_hosts
+      ansible.builtin.assert:
+        that:
+          - duplicitybkp_ssh_store_host is defined
+          - duplicitybkp_ssh_store_host | string | length > 0
+        fail_msg: >-
+          duplicitybkp_ssh_store_host is required to manage known_hosts.
+          Set it, or set duplicitybkp_ssh_known_hosts_manage: false.
+        quiet: true
+
+    - name: duplicitybkp_ssh | locate ssh-keyscan on the control node
+      ansible.builtin.set_fact:
+        _duplicitybkp_keyscan_bin: >-
+          {{ lookup('ansible.builtin.pipe',
+                   'command -v ssh-keyscan 2>/dev/null || true') | trim }}
+      when: duplicitybkp_ssh_known_hosts_key | length == 0
+      tags: [duplicitybkp_known_hosts]
+
+    - name: duplicitybkp_ssh | fail when ssh-keyscan is unavailable
+      ansible.builtin.fail:
+        msg: >-
+          ssh-keyscan was not found on the control node, so the host key of
+          {{ duplicitybkp_ssh_store_host }} cannot be obtained. Install
+          openssh-client, set duplicitybkp_ssh_known_hosts_key explicitly, or
+          set duplicitybkp_ssh_known_hosts_manage: false.
+      when:
+        - duplicitybkp_ssh_known_hosts_key | length == 0
+        - _duplicitybkp_keyscan_bin | default('') | length == 0
+      tags: [duplicitybkp_known_hosts]
+
+    - name: duplicitybkp_ssh | scan store host key on the control node
+      ansible.builtin.command:
+        cmd: >-
+          {{ _duplicitybkp_keyscan_bin }} {{ duplicitybkp_ssh_known_hosts_scan_opts }}
+          {{ duplicitybkp_ssh_store_host }}
+      delegate_to: localhost
+      become: false
+      check_mode: false
+      changed_when: false
+      failed_when: false
+      register: _duplicitybkp_keyscan
+      when: duplicitybkp_ssh_known_hosts_key | length == 0
+      tags: [duplicitybkp_known_hosts]
+
+    - name: duplicitybkp_ssh | select known_hosts entries
+      ansible.builtin.set_fact:
+        _duplicitybkp_known_hosts_entries: >-
+          {{ (duplicitybkp_ssh_known_hosts_key.splitlines()
+              if duplicitybkp_ssh_known_hosts_key | length > 0
+              else (_duplicitybkp_keyscan.stdout | default('', true)).splitlines())
+             | map('trim')
+             | reject('equalto', '')
+             | reject('match', '^#')
+             | list }}
+      tags: [duplicitybkp_known_hosts]
+
+    # Молча продолжать нельзя: бэкап сломается позже и незаметно.
+    - name: duplicitybkp_ssh | fail when the store host key was not obtained
+      ansible.builtin.fail:
+        msg: >-
+          Could not obtain a host key for {{ duplicitybkp_ssh_store_host }}
+          from the control node. Check manually:
+          ssh-keyscan {{ duplicitybkp_ssh_known_hosts_scan_opts }}
+          {{ duplicitybkp_ssh_store_host }}. Then either make the store host
+          reachable from the control node, set
+          duplicitybkp_ssh_known_hosts_key explicitly, or set
+          duplicitybkp_ssh_known_hosts_manage: false.
+      when: _duplicitybkp_known_hosts_entries | length == 0
+      tags: [duplicitybkp_known_hosts]
+
+    - name: duplicitybkp_ssh | ensure known_hosts directory exists
+      ansible.builtin.file:
+        path: "{{ duplicitybkp_ssh_known_hosts_path | dirname }}"
+        state: directory
+        mode: "0700"
+        owner: "{{ duplicitybkp_ssh_known_hosts_owner }}"
+        group: "{{ duplicitybkp_ssh_known_hosts_group }}"
+      tags: [duplicitybkp_known_hosts]
+
+    - name: duplicitybkp_ssh | add store host key to known_hosts
+      ansible.builtin.known_hosts:
+        path: "{{ duplicitybkp_ssh_known_hosts_path }}"
+        name: "{{ item.split() | first }}"
+        key: "{{ item }}"
+        state: present
+      loop: "{{ _duplicitybkp_known_hosts_entries }}"
+      loop_control:
+        # Только host и тип ключа: полный ключ в выводе не нужен.
+        label: "{{ item.split()[:2] | join(' ') }}"
+      tags: [duplicitybkp_known_hosts]
+
+    - name: duplicitybkp_ssh | set known_hosts permissions
+      ansible.builtin.file:
+        path: "{{ duplicitybkp_ssh_known_hosts_path }}"
+        state: file
+        mode: "0644"
+        owner: "{{ duplicitybkp_ssh_known_hosts_owner }}"
+        group: "{{ duplicitybkp_ssh_known_hosts_group }}"
+      tags: [duplicitybkp_known_hosts]

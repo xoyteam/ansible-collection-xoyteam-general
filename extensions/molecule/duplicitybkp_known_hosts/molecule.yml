@@ -1,0 +1,59 @@
+---
+# Molecule scenario for the known_hosts handling of xoyteam.general.duplicitybkp.
+#
+# Run from the collection root:
+#   python -m pip install -r requirements-molecule.txt
+#   molecule test -s duplicitybkp_known_hosts
+#
+# Docker daemon is required on the host. The scenario needs no network inside
+# the instance: ssh-keyscan is not called because
+# duplicitybkp_ssh_known_hosts_key is set to a fictitious key, and only
+# tasks/known_hosts.yml is converged (duplicity itself is not installed).
+dependency:
+  name: galaxy
+  enabled: false
+
+driver:
+  name: docker
+
+platforms:
+  - name: duplicitybkp-known-hosts
+    image: geerlingguy/docker-debian12-ansible:latest
+    pre_build_image: true
+    privileged: true
+    command: /sbin/init
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    cgroupns_mode: host
+    capabilities:
+      - SYS_ADMIN
+    tmpfs:
+      - /run
+      - /tmp
+
+provisioner:
+  name: ansible
+  env:
+    # Resolve xoyteam.general.* from the collection checkout, even if the
+    # collection is not installed into ansible_collections.
+    ANSIBLE_COLLECTIONS_PATH: "${MOLECULE_PROJECT_DIRECTORY}/../.."
+  playbooks:
+    prepare: prepare.yml
+    converge: converge.yml
+    verify: verify.yml
+
+verifier:
+  name: ansible
+
+scenario:
+  name: duplicitybkp_known_hosts
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy

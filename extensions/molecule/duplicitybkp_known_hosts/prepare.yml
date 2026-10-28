@@ -1,0 +1,14 @@
+---
+# ansible.builtin.known_hosts requires ssh-keygen on the target host.
+- name: Prepare
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Install openssh-client
+      ansible.builtin.apt:
+        name:
+          - openssh-client
+        state: present
+        update_cache: true
+        cache_valid_time: 3600

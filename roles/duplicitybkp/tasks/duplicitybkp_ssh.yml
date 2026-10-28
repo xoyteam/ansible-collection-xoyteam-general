@@ -19,6 +19,10 @@
   tags: [duplicitybkp_ssh, duplicitybkp_ssh_target]
 
 
+- name: duplicitybkp_ssh | manage known_hosts of the store host
+  ansible.builtin.include_tasks: known_hosts.yml
+  tags: [duplicitybkp_ssh, duplicitybkp_known_hosts]
+
 - name: duplicitybkp_ssh | set variables
   set_fact:
     _duplicitybkp_extraopts: "{{ duplicitybkp_extraopts + ' ' + duplicitybkp_ssh_extraopts }}"

@@ -1,0 +1,19 @@
+---
+# Only tasks/known_hosts.yml is converged: the full duplicitybkp role installs
+# duplicity via pip and would need network, which this scenario avoids.
+# The key is fictitious and must never match a real host.
+- name: Converge
+  hosts: all
+  become: true
+  gather_facts: false
+  vars:
+    bkp_name: molecule
+    duplicitybkp_ssh_store_user: backup
+    duplicitybkp_ssh_store_host: backup.example
+    duplicitybkp_ssh_known_hosts_key: >-
+      backup.example ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKnownHostsFixtureOnly
+  tasks:
+    - name: Manage known_hosts of the store host
+      ansible.builtin.include_role:
+        name: xoyteam.general.duplicitybkp
+        tasks_from: known_hosts

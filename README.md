@@ -12,7 +12,8 @@
 > `credentials-crypt/<host>/mysql_bkp_password` рядом с playbook потребляющего
 > проекта (git-crypt); в примерах ниже — только заглушки вида `change-me`.
 
-Версия коллекции: `2.1.0` (тегов нет). CI и тестов в репозитории нет.
+Версия коллекции: `2.2.0` (тегов нет). CI нет; проверки — Molecule-сценарии
+(см. «Тестирование (Molecule)»).
 
 ---
 
@@ -58,6 +59,13 @@ cron и logrotate; для MySQL — скрипт `mysqldump` и конфиг с�
 Каталоги, которыми управляет роль, — `0750 root:<mysqlbkp_dir_group>` (по умолчанию
 `adm`), конфиги/дампы/логи — `0600 root:root`, скрипты — `0700 root:root`. Подробности
 и полный список переменных — в [README роли](roles/duplicitybkp/README.md).
+
+В ssh-режиме (`bkptype: duplicitybkp_ssh`) роль сама добавляет ключ
+хоста-хранилища в `known_hosts` пользователя, от которого идёт cron-бэкап
+(по умолчанию `/root/.ssh/known_hosts`): ключ снимается `ssh-keyscan` с
+control-node либо берётся из `duplicitybkp_ssh_known_hosts_key`; управление
+отключается `duplicitybkp_ssh_known_hosts_manage: false`. Проверка host key не
+отключается.
 
 ### `pgbasebackup_native` и `pgbasebackup_dkr`
 
@@ -107,13 +115,16 @@ cron-задания и перезаписывают конфиги. Для пр�
 ## Тестирование (Molecule)
 
 Для роли `pgbasebackup_extdkr` есть Molecule-сценарий
-`extensions/molecule/pgbasebackup_extdkr`. Нужен Docker на хосте (сам сценарий
-Docker внутри инстанса не требует: `verify.yml` подкладывает fake `docker` CLI).
+`extensions/molecule/pgbasebackup_extdkr`, для `duplicitybkp` —
+`extensions/molecule/duplicitybkp_known_hosts`. Нужен Docker на хосте (сами
+сценарии Docker внутри инстанса не требуют: `verify.yml` подкладывает fake
+`docker` CLI, а known_hosts-сценарий работает с фиктивным ключом без сети).
 
 ```bash
 python -m pip install -r requirements-molecule.txt
 ansible-galaxy collection install -r requirements.yml  # docker-driver deps
 molecule test -s pgbasebackup_extdkr
+molecule test -s duplicitybkp_known_hosts
 ```
 
 Сценарий:
@@ -127,6 +138,18 @@ molecule test -s pgbasebackup_extdkr
 
 Полноценный бэкап реального PostgreSQL Molecule-сценарий не выполняет — для этого
 нужен отдельный стенд с БД и Docker socket.
+
+Сценарий `duplicitybkp_known_hosts`:
+
+* `converge.yml` — сходится только `tasks/known_hosts.yml` роли `duplicitybkp`
+  (duplicity не устанавливается, сеть не нужна) с фиктивным
+  `duplicitybkp_ssh_known_hosts_key`;
+* `idempotence` — повторный прогон даёт `changed=0`;
+* `verify.yml` — в `/root/.ssh/known_hosts` ровно одна ожидаемая строка,
+  права `0644 root:root`, каталог `0700 root:root`.
+
+Ограничение: строка `ssh-keygen` должна быть на целевом хосте — её требует
+`ansible.builtin.known_hosts`; в сценарии её ставит `prepare.yml`.
 
 ---
 
