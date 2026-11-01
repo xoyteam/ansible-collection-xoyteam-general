@@ -47,7 +47,8 @@
 
 - name: cronjob create
   cron:
-    name: "mysql backup by list"
+    # Имя должно быть уникальным: на одном хосте может быть несколько MySQL-заданий.
+    name: "mysql backup by list {{ mysqlbkp_jobname_prefix }}"
     minute: "03"
     hour: "0"
     job: "umask 077; {{ mysqlbkp_bin_name }} >{{ mysqlbkp_log_name }} 2>&1"

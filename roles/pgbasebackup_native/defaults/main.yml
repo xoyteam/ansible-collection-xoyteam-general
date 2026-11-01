@@ -40,3 +40,8 @@ pgbinbkp_basebackup_options: "-c fast"
 pgbinbkp_cron_minute: "03"
 pgbinbkp_cron_hour: "0"
 
+# Метрики (контракт docs/backup-metrics.md).
+# Маршрут алертов и канонический host можно переопределить из playbook.
+backup_kind: postgres
+backup_route: dev
+backup_host: "{{ inventory_hostname }}"

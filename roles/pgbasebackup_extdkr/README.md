@@ -158,6 +158,11 @@ host    replication     all     172.19.0.0/24   scram-sha-256
 
 ## Метрики
 
+Контракт и правила именования — [docs/backup-metrics.md](../../docs/backup-metrics.md).
+Роль пишет `backup_*` (`last_attempt`, `last_success`, `duration`, `size`,
+`attempts`, `failures`) с labels `project`/`kind`/`impl`/`phase`/`backup_route`
+; legacy `duplicity_*` удалён.
+
 Если `node_exporter_textfile_dir` задан и каталог существует, роль создаёт его
 (`0755 root:root`), а скрипт после успешного бэкапа best-effort пишет атомарно
 файл `<job>.prom` (`0644`):

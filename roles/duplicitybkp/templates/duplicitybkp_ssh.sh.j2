@@ -1,20 +1,22 @@
 #!/bin/bash
 
+{{ lookup('file', role_path ~ '/../backup_metrics/files/backup_metrics.sh') }}
+
 # Авторизационные данные для подключения к хранилищу
 
 # Установка переменных
 DATE="$(command -v date)"
 NOW=$($DATE +%Y%m%d_%H%M%S)
-node_exporter_textfile_dir="/var/lib/node_exporter"
+node_exporter_textfile_dir="{{ node_exporter_textfile_dir | default('/var/lib/node_exporter') }}"
 BKPTARGET="{{ duplicitybkp_ssh_backup_target }}"
 BKPSTORE="{{ duplicitybkp_ssh_store_dsn }}"
 JOBNAME="{{ duplicitybkp_ssh_jobname_prefix }}"
+BACKUP_ROUTE="{{ backup_route | default('dev') }}"
+BACKUP_HOST="{{ backup_host | default(inventory_hostname) }}"
 
-read -r -d '' METRIC_PREFIX << EOM
-# HELP duplicity_backup swift upload
-# TYPE duplicity_upload counter
-duplicity_upload{type="{{ bkptype }}",project="${JOBNAME}"}
-EOM
+bm_init "$JOBNAME" "{{ backup_kind | default('files') }}" "duplicitybkp_ssh" \
+  "$BACKUP_HOST" "$BACKUP_ROUTE" "$node_exporter_textfile_dir"
+bm_phase_start upload
 
 # Выполнение архивирования
 /usr/bin/duplicity \
@@ -29,19 +31,15 @@ EOM
     ${BKPTARGET} \
     ${BKPSTORE}
 rc=$?;
-if [[ $rc == 0 ]]; then echo "$NOW: Backup database succefully uploaded to S3"; fi
-if [[ $rc == 0 ]]; then
-  if [ -f $node_exporter_textfile_dir/${JOBNAME}_upload.prom ]; then
-    cat $node_exporter_textfile_dir/${JOBNAME}_upload.prom \
-      | grep -v '^\s*#' \
-      | awk -v PREFIX="$METRIC_PREFIX" '{a = ++$2; if ( a > 9 ) a = 0; print PREFIX, a}' \
-      | tee $node_exporter_textfile_dir/${JOBNAME}_upload.prom.$ >/dev/null
-    mv $node_exporter_textfile_dir/${JOBNAME}_upload.prom.$  $node_exporter_textfile_dir/${JOBNAME}_upload.prom
-  else
-    echo -e "${METRIC_PREFIX} 1" > $node_exporter_textfile_dir/${JOBNAME}_upload.prom.$
-    mv $node_exporter_textfile_dir/${JOBNAME}_upload.prom.$  $node_exporter_textfile_dir/${JOBNAME}_upload.prom
-  fi
+if [[ $rc -ne 0 ]]; then
+  echo "$NOW: ERROR: duplicity upload failed (rc=$rc)" >&2
+  bm_phase_fail upload
+  exit "$rc"
 fi
+echo "$NOW: Backup database succefully uploaded to S3"
+
+BACKUP_SIZE=$(du -sb -- "$BKPTARGET" 2>/dev/null | awk '{print $1}' || true)
+bm_phase_success upload "${BACKUP_SIZE:-}" || true
 
 /usr/bin/duplicity \
     --no-encryption \

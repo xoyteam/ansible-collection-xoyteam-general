@@ -1,4 +1,5 @@
 #!/bin/bash
+{{ lookup('file', role_path ~ '/../backup_metrics/files/backup_metrics.sh') }}
 set -Eeuo pipefail
 ###******************************************************************************************###
 
@@ -19,6 +20,8 @@ PG_BASEBACKUP_OPTIONS="{{ pgdkr_basebackup_options }}"
 SPACE_MARGIN_PERCENT="{{ pgdkr_space_margin_percent | default(20) }}"
 MIN_FREE_KB="{{ pgdkr_min_free_kb | default(0) }}"
 NODE_EXPORTER_DIR={{ node_exporter_textfile_dir | default('') | quote }}
+BACKUP_ROUTE="{{ backup_route | default('dev') }}"
+BACKUP_HOST="{{ backup_host | default(inventory_hostname) }}"
 ###******************************************************************************************###
 
 DATE="$(command -v date)"
@@ -46,19 +49,21 @@ detect_pg_version() {
   printf '%s' "$v"
 }
 
-METRIC_PREFIX='# HELP duplicity_backup frecuency backup
-# TYPE duplicity_backup counter
-duplicity_backup{type="pg_basebackup_dkr",project="'"${JOBNAME}"'"}'
-
 ENV_FILE=""
 REPLACING=0
 SUCCESS=0
+
+bm_init "{{ pgdkr_jobname_prefix }}" "postgres" "pg_basebackup_dkr" \
+  "$BACKUP_HOST" "$BACKUP_ROUTE" "$NODE_EXPORTER_DIR"
 
 cleanup() {
   local rc=$?
   trap - EXIT
   if [ -n "${ENV_FILE:-}" ]; then
     rm -f -- "$ENV_FILE"
+  fi
+  if [ "$SUCCESS" -ne 1 ]; then
+    bm_phase_fail backup || true
   fi
   if [ "$REPLACING" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then
     echo "$NOW: removing incomplete backup $CURRENT" >&2
@@ -182,6 +187,8 @@ ENV_FILE=$(mktemp "${TMPDIR:-/tmp}/pgdkr-env.XXXXXX")
 chmod 600 "$ENV_FILE"
 printf 'PGPASSWORD=%s\n' "$PG_PASS" > "$ENV_FILE"
 
+bm_phase_start backup
+
 # --- replace the current local backup ---
 umask 077
 REPLACING=1
@@ -198,25 +205,10 @@ fi
 chmod -R go-rwx -- "$CURRENT"
 chmod 0700 -- "$CURRENT"
 ARCHIVE_SIZE=$(du -sh -- "$CURRENT" | awk '{print $1}')
+SIZE_BYTES=$(du -sb -- "$CURRENT" | awk '{print $1}')
 SUCCESS=1
+bm_phase_success backup "$SIZE_BYTES" || true
 echo "$NOW: backup created: $CURRENT ($ARCHIVE_SIZE)"
 
-# --- metrics: best effort, must not fail the backup ---
-if [ -n "$NODE_EXPORTER_DIR" ] && [ -d "$NODE_EXPORTER_DIR" ]; then
-  (
-    if [ -f "$NODE_EXPORTER_DIR/${JOBNAME}.prom" ]; then
-      cat "$NODE_EXPORTER_DIR/${JOBNAME}.prom" \
-        | grep -v '^\s*#' \
-        | awk -v PREFIX="$METRIC_PREFIX" '{a = ++$2; if ( a > 9 ) a = 1; print PREFIX, a}' \
-        | tee "$NODE_EXPORTER_DIR/${JOBNAME}.prom.$" >/dev/null
-      mv "$NODE_EXPORTER_DIR/${JOBNAME}.prom.$" "$NODE_EXPORTER_DIR/${JOBNAME}.prom"
-    else
-      echo -e "${METRIC_PREFIX} 1" > "$NODE_EXPORTER_DIR/${JOBNAME}.prom.$"
-      mv "$NODE_EXPORTER_DIR/${JOBNAME}.prom.$" "$NODE_EXPORTER_DIR/${JOBNAME}.prom"
-    fi
-  ) || echo "$NOW: warning: failed to update metric" >&2
-else
-  echo "$NOW: warning: node_exporter_textfile_dir is not set or missing; metric not updated" >&2
-fi
 
 exit 0

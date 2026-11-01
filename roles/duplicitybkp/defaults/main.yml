@@ -98,6 +98,11 @@ duplicitybkp_ssh_known_hosts_scan_opts: "-T 10 -t ed25519,rsa"
 duplicitybkp_ssh_known_hosts_owner: "root"
 duplicitybkp_ssh_known_hosts_group: "root"
 
+# Расписание отправки. Разные задания на одном хосте лучше разносить,
+# чтобы duplicity не запускались одновременно.
+duplicitybkp_ssh_cron_minute: "06"
+duplicitybkp_ssh_cron_hour: "2"
+
 #duplicitybkp_scritptemplate
 duplicitybkp_type: swift
 duplicitybkp_volsize: 500
@@ -116,5 +121,8 @@ duplicitybkp_s3_opts: "{{ duplicitybkp_s3_endpoint }} {{ duplicitybkp_s3_region 
 # duplicitybkp_s3_accesskey
 # duplicitybkp_s3_secretkey
 
-
-
+# Метрики (контракт docs/backup-metrics.md).
+# Маршрут алертов и канонический host можно переопределить из playbook.
+backup_kind: files
+backup_route: dev
+backup_host: "{{ inventory_hostname }}"

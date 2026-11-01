@@ -61,7 +61,7 @@
 - name: duplicitybkp_ssh | add cron job for run duplicity
   cron:
     name: "make {{ duplicitybkp_ssh_jobname }} ssh duplicity backup"
-    minute: "06"
-    hour:   "2"
+    minute: "{{ duplicitybkp_ssh_cron_minute }}"
+    hour:   "{{ duplicitybkp_ssh_cron_hour }}"
     job:    "{{ duplicitybkp_ssh_bin_fullname }} >{{ duplicitybkp_ssh_log_fullname }} 2>&1"
   tags: [duplicitybkp_ssh]

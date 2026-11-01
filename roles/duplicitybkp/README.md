@@ -3,6 +3,11 @@ duplicitybkp
 
 Backup for duplicity
 
+Метрики и имена заданий — по общему контракту
+[docs/backup-metrics.md](../../docs/backup-metrics.md) (метрики `backup_*`,
+labels `project`/`kind`/`impl`/`phase`/`backup_route`). Для `bkptype:
+duplicitybkp_ssh` пишется фаза `upload`; legacy `duplicity_upload` удалён.
+
 Requirements
 ------------
 
@@ -32,6 +37,8 @@ defaults намеренно не заданы: их передаёт потре�
 | Переменная | По умолчанию | Описание |
 |---|---|---|
 | `duplicitybkp_ssh_known_hosts_manage` | `true` | `false` — роль не трогает `known_hosts` (управляется извне) |
+| `duplicitybkp_ssh_cron_minute` | `06` | минута запуска upload |
+| `duplicitybkp_ssh_cron_hour` | `2` | час запуска upload; на одном хосте задания лучше разносить |
 | `duplicitybkp_ssh_known_hosts_path` | `/root/.ssh/known_hosts` | файл пользователя, от которого идёт бэкап (cron root) |
 | `duplicitybkp_ssh_known_hosts_key` | `""` | явная строка `host ssh-ed25519 AAAA...`; если задана, `ssh-keyscan` не вызывается |
 | `duplicitybkp_ssh_known_hosts_scan_opts` | `-T 10 -t ed25519,rsa` | опции `ssh-keyscan` |

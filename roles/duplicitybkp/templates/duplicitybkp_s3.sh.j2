@@ -10,12 +10,6 @@ NOW=$($DATE +%Y%m%d_%H%M%S)
 node_exporter_textfile_dir="/var/lib/node_exporter"
 DUPLICITY={{ duplicitybkp_duplicity_path }}
 
-read -r -d '' METRIC_PREFIX << EOM
-# HELP duplicity_backup swift upload
-# TYPE duplicity_upload counter
-duplicity_upload{type="swift",project="{{ backup_name }}"}
-EOM
-
 # Выполнение архивирования
 $DUPLICITY \
     --volsize {{ backup_volsize|d('500') }} \
@@ -29,18 +23,6 @@ $DUPLICITY \
     s3://{{ duplicitybkp_s3_bucket }}
 rc=$?;
     if [[ $rc == 0 ]]; then echo "$NOW: Backup database succefully uploaded to S3"; fi
-    if [[ $rc == 0 ]]; then
-      if [ -f $node_exporter_textfile_dir/{{ backup_name }}_upload.prom ]; then
-        cat $node_exporter_textfile_dir/{{ backup_name }}_upload.prom \
-          | grep -v '^\s*#' \
-          | awk -v PREFIX="$METRIC_PREFIX" '{a = ++$2; if ( a > 9 ) a = 0; print PREFIX, a}' \
-          | tee $node_exporter_textfile_dir/{{ backup_name }}_upload.prom.$ >/dev/null
-        mv $node_exporter_textfile_dir/{{ backup_name }}_upload.prom.$  $node_exporter_textfile_dir/{{ backup_name }}_upload.prom
-      else
-        echo -e "${METRIC_PREFIX} 1" > $node_exporter_textfile_dir/{{ backup_name }}_upload.prom.$
-        mv $node_exporter_textfile_dir/{{ backup_name }}_upload.prom.$  $node_exporter_textfile_dir/{{ backup_name }}_upload.prom
-      fi
-    fi
 
 $DUPLICITY \
     --no-encryption \

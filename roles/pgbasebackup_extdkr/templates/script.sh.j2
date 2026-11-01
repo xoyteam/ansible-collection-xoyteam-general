@@ -1,4 +1,5 @@
 #!/bin/bash
+{{ lookup('file', role_path ~ '/../backup_metrics/files/backup_metrics.sh') }}
 set -Eeuo pipefail
 ###******************************************************************************************###
 # Physical PostgreSQL backup in a short-lived container of a dedicated compose
@@ -28,6 +29,8 @@ SPACE_MARGIN_PERCENT="{{ pgextdkr_space_margin_percent | default(20) }}"
 MIN_FREE_KB="{{ pgextdkr_min_free_kb | default(0) }}"
 NODE_EXPORTER_DIR={{ node_exporter_textfile_dir | default('') | quote }}
 LOCK_FILE={{ pgextdkr_lock_file | quote }}
+BACKUP_ROUTE="{{ backup_route | default('dev') }}"
+BACKUP_HOST="{{ backup_host | default(inventory_hostname) }}"
 ###******************************************************************************************###
 
 DATE="$(command -v date)"
@@ -65,47 +68,18 @@ detect_pg_version() {
   printf '%s' "$v"
 }
 
-write_metric() {
-  [ -n "$NODE_EXPORTER_DIR" ] || { log "node_exporter_textfile_dir is not set; metric not updated" >&2; return 0; }
-  [ -d "$NODE_EXPORTER_DIR" ] || { log "node_exporter_textfile_dir does not exist: $NODE_EXPORTER_DIR; metric not updated" >&2; return 0; }
-
-  local file="$NODE_EXPORTER_DIR/${JOBNAME}.prom"
-  local tmp="$NODE_EXPORTER_DIR/.${JOBNAME}.prom.$$"
-  local prev=0
-  local now
-  local duration
-
-  if [ -f "$file" ]; then
-    prev=$(awk '/^duplicity_backup\{/ {print $NF}' "$file" 2>/dev/null | head -n 1 || true)
-  fi
-  case "${prev:-}" in
-    ''|*[!0-9]*) prev=0 ;;
-  esac
-  prev=$(( prev % 9 + 1 ))
-  now=$($DATE +%s)
-  duration=$(( now - START_EPOCH ))
-
-  {
-    printf '# HELP duplicity_backup Backup run counter (cycles 1..9)\n'
-    printf '# TYPE duplicity_backup counter\n'
-    printf 'duplicity_backup{type="%s",project="%s"} %s\n' "$METRIC_TYPE" "$JOBNAME" "$prev"
-    printf '# HELP duplicity_backup_last_success_timestamp_seconds Unix time of the last successful backup\n'
-    printf '# TYPE duplicity_backup_last_success_timestamp_seconds gauge\n'
-    printf 'duplicity_backup_last_success_timestamp_seconds{type="%s",project="%s"} %s\n' "$METRIC_TYPE" "$JOBNAME" "$now"
-    printf '# HELP duplicity_backup_duration_seconds Duration of the last successful backup\n'
-    printf '# TYPE duplicity_backup_duration_seconds gauge\n'
-    printf 'duplicity_backup_duration_seconds{type="%s",project="%s"} %s\n' "$METRIC_TYPE" "$JOBNAME" "$duration"
-  } > "$tmp"
-  chmod 0644 -- "$tmp"
-  mv -f -- "$tmp" "$file"
-}
-
 REPLACING=0
 SUCCESS=0
+
+bm_init "{{ pgextdkr_jobname_prefix }}" "postgres" "pg_basebackup_extdkr" \
+  "$BACKUP_HOST" "$BACKUP_ROUTE" "$NODE_EXPORTER_DIR"
 
 cleanup() {
   local rc=$?
   trap - EXIT
+  if [ "$SUCCESS" -ne 1 ]; then
+    bm_phase_fail backup || true
+  fi
   if [ "$REPLACING" -eq 1 ] && [ "$SUCCESS" -ne 1 ]; then
     log "removing incomplete backup $CURRENT" >&2
     rm -rf -- "${CURRENT:?}"
@@ -137,6 +111,7 @@ if ! flock -n 9; then
   log "another backup is already running (lock $LOCK_FILE); exiting"
   exit 75
 fi
+bm_phase_start backup
 
 ###******************************************************************************************###
 # Resolve the DB container (explicit, auto-detected, or external DB)
@@ -255,15 +230,10 @@ fi
 chmod -R go-rwx -- "$CURRENT"
 chmod 0700 -- "$CURRENT"
 ARCHIVE_SIZE=$(du -sh -- "$CURRENT" | awk '{print $1}')
+SIZE_BYTES=$(du -sb -- "$CURRENT" | awk '{print $1}')
 SUCCESS=1
+bm_phase_success backup "$SIZE_BYTES" || true
 log "backup created: $CURRENT ($ARCHIVE_SIZE)"
-
-###******************************************************************************************###
-# Metrics: best effort, must not fail an already successful backup
-###******************************************************************************************###
-if ! ( write_metric ); then
-  log "WARNING: failed to update node_exporter metric" >&2
-fi
 
 log "backup finished successfully in $(( $($DATE +%s) - START_EPOCH ))s"
 exit 0

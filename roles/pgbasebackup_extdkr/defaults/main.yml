@@ -75,3 +75,9 @@ pgextdkr_effective_image: >-
   {{ pgextdkr_image
      if pgextdkr_image | length > 0
      else ('postgres:' ~ postgres_version if postgres_version | length > 0 else '') }}
+
+# Метрики (контракт docs/backup-metrics.md).
+# Маршрут алертов и канонический host можно переопределить из playbook.
+backup_kind: postgres
+backup_route: dev
+backup_host: "{{ inventory_hostname }}"

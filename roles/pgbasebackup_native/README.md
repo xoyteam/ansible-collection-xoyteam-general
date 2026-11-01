@@ -53,8 +53,9 @@ Role Variables
 4. При ошибке `pg_basebackup` удаляет недоделанный каталог и завершается с кодом
    `1`; при успехе — `0`.
 5. Выставляет `0700` и `umask 077`; лог — `0640`.
-6. Пишет метрику `duplicity_backup{type="pg_basebackup_native"}` best-effort:
-   ошибка метрики не отменяет успешный бэкап.
+6. Пишет `backup_*` (attempt/success/duration/size/counters); legacy
+   `duplicity_backup{type="pg_basebackup_native"}` best-effort: ошибка метрики
+   не отменяет успешный бэкап. Контракт — [docs/backup-metrics.md](../../docs/backup-metrics.md).
 
 Важно: пока идёт `pg_basebackup`, каталог бэкапа неполный. duplicity не должен
 запускаться одновременно с бэкапом — либо разносите расписание, либо используйте

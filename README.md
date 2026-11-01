@@ -12,7 +12,7 @@
 > `credentials-crypt/<host>/mysql_bkp_password` рядом с playbook потребляющего
 > проекта (git-crypt); в примерах ниже — только заглушки вида `change-me`.
 
-Версия коллекции: `2.2.0` (тегов нет). CI нет; проверки — Molecule-сценарии
+Версия коллекции: `2.3.0` (тег `2.3.0`). CI нет; проверки — Molecule-сценарии
 (см. «Тестирование (Molecule)»).
 
 ---
@@ -42,6 +42,13 @@
 ---
 
 ## Бэкапы
+
+### Метрики и соглашение об именах
+
+Единый контракт метрик (`backup_*`), labels (`project`, `kind`, `impl`,
+`host`, `phase`, `backup_route`) и правила именования заданий —
+[docs/backup-metrics.md](docs/backup-metrics.md). Новые роли и правки
+`duplicitybkp`/`pgbasebackup_*` должны следовать этому контракту.
 
 ### `duplicitybkp`
 

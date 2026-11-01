@@ -1,4 +1,5 @@
 #!/bin/bash
+{{ lookup('file', role_path ~ '/../backup_metrics/files/backup_metrics.sh') }}
 set -x
 # Метрики должны читаться node_exporter; дампы пишутся в subshell с umask 077.
 umask 022
@@ -13,15 +14,18 @@ MYSQLDUMP="$(command -v mysqldump)"
 GZIP="$(command -v gzip)"
 DATE="$(command -v date)"
 NOW=$($DATE +%Y%m%d_%H%M%S)
-node_exporter_textfile_dir="{{ node_exporter_textfile_dir }}"
+node_exporter_textfile_dir="{{ node_exporter_textfile_dir | default('/var/lib/node_exporter') }}"
+BACKUP_ROUTE="{{ backup_route | default('dev') }}"
+BACKUP_HOST="{{ backup_host | default(inventory_hostname) }}"
 
-read -r -d '' METRIC_PREFIX << EOM
-# HELP duplicity_backup frecuency backup
-# TYPE duplicity_backup counter
-duplicity_backup{type="mysql",project="${BACKUPNAME}"}
-EOM
+bm_init "$BACKUPNAME" "mysql" "mysqlbkp_fullcfg" \
+  "$BACKUP_HOST" "$BACKUP_ROUTE" "$node_exporter_textfile_dir"
+bm_phase_start backup
 
 ###******************************************************************************************###
+BACKUP_ERRORS=0
+TOTAL_SIZE=0
+
 create_backup_act()
 {
   while read line;
@@ -55,22 +59,23 @@ create_backup_act()
     if [ -f "$FILE" ]; then chmod 600 "$FILE"; fi
     set -x
     ARCHIVE_SIZE=$(du -sh "$FILE")
-    if [[ $rc == 0 ]]; then echo "$NOW: Backup database $DbName was created, archive size $ARCHIVE_SIZE"; fi
     if [[ $rc == 0 ]]; then
-      if [ -f $node_exporter_textfile_dir/${BACKUPNAME}.prom ]; then
-        cat $node_exporter_textfile_dir/${BACKUPNAME}.prom \
-          | grep -v '^\s*#' \
-          | awk -v PREFIX="$METRIC_PREFIX" '{a = ++$2; if ( a > 9 ) a = 1; print PREFIX, a}' \
-          | tee $node_exporter_textfile_dir/${BACKUPNAME}.prom.$ >/dev/null
-        mv $node_exporter_textfile_dir/${BACKUPNAME}.prom.$  $node_exporter_textfile_dir/${BACKUPNAME}.prom
-      else
-        echo -e "${METRIC_PREFIX} 1" > $node_exporter_textfile_dir/${BACKUPNAME}.prom.$
-        mv $node_exporter_textfile_dir/${BACKUPNAME}.prom.$  $node_exporter_textfile_dir/${BACKUPNAME}.prom
-      fi
+      FILE_SIZE=$(stat -c%s "$FILE" 2>/dev/null || echo 0)
+      TOTAL_SIZE=$(( TOTAL_SIZE + FILE_SIZE ))
+      echo "$NOW: Backup database $DbName was created, archive size $ARCHIVE_SIZE"
+    else
+      BACKUP_ERRORS=$(( BACKUP_ERRORS + 1 ))
     fi
   done < $BkpListFile
 }
 
 ##_MAIN_
-  create_backup_act;
+  create_backup_act
+  rc=$?
+  if [ "$rc" -ne 0 ]; then BACKUP_ERRORS=$(( BACKUP_ERRORS + 1 )); fi
+  if [ "$BACKUP_ERRORS" -ne 0 ]; then
+    bm_phase_fail backup
+    exit 1
+  fi
+  bm_phase_success backup "$TOTAL_SIZE"
 exit 0
