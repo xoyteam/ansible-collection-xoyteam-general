@@ -1,0 +1,13 @@
+---
+galaxy_info:
+  author: xoy (xoy dot mail at gmail dot com)
+  description: PostgreSQL in Docker Swarm with an attachable overlay network
+  company: xoyteam
+  license: GPL-3.0-or-later
+  min_ansible_version: "2.14"
+  galaxy_tags:
+    - postgresql
+    - docker
+    - swarm
+
+dependencies: []

@@ -1,0 +1,26 @@
+---
+# PostgreSQL в Docker Swarm: отдельный стек + отдельная attachable overlay-сеть,
+# к которой другие стеки подключаются как к external network.
+#
+# Хост должен быть в Swarm (docker swarm init); роль его не инициализирует.
+# Опубликованных наружу портов нет: потребители ходят по имени сервиса
+# (postgres) внутри overlay-сети.
+
+pgdocker_swarm_stack: pg
+pgdocker_swarm_image: postgres:17
+pgdocker_swarm_install_path: "/home/docker/{{ pgdocker_swarm_stack }}"
+pgdocker_swarm_data_dir: "{{ pgdocker_swarm_install_path }}/data"
+pgdocker_swarm_network: "{{ pgdocker_swarm_stack }}-net"
+
+pgdocker_swarm_db: postgres
+pgdocker_swarm_user: postgres
+pgdocker_swarm_password: change-me
+
+# uid/gid официального образа postgres (999:999).
+pgdocker_swarm_uid: 999
+pgdocker_swarm_gid: 999
+
+pgdocker_swarm_replicas: 1
+
+# Дополнительные переменные окружения контейнера (словарь).
+pgdocker_swarm_env: {}

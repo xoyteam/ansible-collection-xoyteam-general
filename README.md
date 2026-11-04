@@ -27,6 +27,7 @@
 | `pgbasebackup_extdkr` | То же через отдельный короткоживущий compose-проект: `docker compose run --rm`, `flock`, метрики | Рабочая |
 | `install_duplicity` | Заготовка установки duplicity | Пустая, не используется (установка в `duplicitybkp`) |
 | `pg_docker` | PostgreSQL в `docker compose` | Заготовка, handler использует устаревший `docker_compose` v1 |
+| `pg_docker_swarm` | PostgreSQL в Docker Swarm: стек + attachable overlay-сеть | Новая (2026-11), используется координатором Bareos |
 | `mysql_server` | MySQL в `docker compose` | Заготовка |
 | `postgres_exporter` | `postgres_exporter` в `docker compose` | Заготовка |
 | `prometheus` | Prometheus в `docker compose` | Заготовка |

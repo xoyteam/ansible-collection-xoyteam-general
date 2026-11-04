@@ -1,0 +1,85 @@
+---
+# PostgreSQL в Swarm: проверки, overlay-сеть, стек, ожидание готовности.
+
+- name: Check that Docker Swarm is active
+  ansible.builtin.command:
+    argv: [docker, info, --format, "{{ '{{' }}.Swarm.LocalNodeState{{ '}}' }}"]
+  register: pgdocker_swarm_state
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Fail when Docker Swarm is not active
+  ansible.builtin.assert:
+    that:
+      - pgdocker_swarm_state.stdout | trim == 'active'
+    fail_msg: >-
+      Docker Swarm не активен ({{ pgdocker_swarm_state.stdout | trim }}).
+      Инициализируйте Swarm на хосте: docker swarm init --advertise-addr <IP>.
+
+- name: Create the stack directory
+  ansible.builtin.file:
+    path: "{{ pgdocker_swarm_install_path }}"
+    state: directory
+    mode: "0755"
+
+- name: Create the PostgreSQL data directory
+  ansible.builtin.file:
+    path: "{{ pgdocker_swarm_data_dir }}"
+    state: directory
+    owner: "{{ pgdocker_swarm_uid }}"
+    group: "{{ pgdocker_swarm_gid }}"
+    mode: "0700"
+
+- name: Check whether the overlay network exists
+  ansible.builtin.command:
+    argv: [docker, network, inspect, "{{ pgdocker_swarm_network }}"]
+  register: pgdocker_swarm_net
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Create the attachable overlay network
+  ansible.builtin.command:
+    argv:
+      - docker
+      - network
+      - create
+      - --driver
+      - overlay
+      - --attachable
+      - "{{ pgdocker_swarm_network }}"
+  when: pgdocker_swarm_net.rc != 0
+
+- name: Render the stack file
+  ansible.builtin.template:
+    src: stack.yml.j2
+    dest: "{{ pgdocker_swarm_install_path }}/stack.yml"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy the PostgreSQL stack
+  ansible.builtin.command:
+    argv:
+      - docker
+      - stack
+      - deploy
+      - --with-registry-auth
+      - --compose-file
+      - "{{ pgdocker_swarm_install_path }}/stack.yml"
+      - "{{ pgdocker_swarm_stack }}"
+  register: pgdocker_swarm_deploy
+  changed_when: "pgdocker_swarm_deploy.stdout | default('') is search('Creating|Updating')"
+
+- name: Wait for the PostgreSQL service to converge
+  ansible.builtin.shell: |
+    set -o pipefail
+    docker stack services {{ pgdocker_swarm_stack }} \
+      --format '{{ '{{' }}.Replicas{{ '}}' }}' | grep -qx '{{ pgdocker_swarm_replicas }}/{{ pgdocker_swarm_replicas }}'
+  register: pgdocker_swarm_ready
+  retries: 40
+  delay: 3
+  until: pgdocker_swarm_ready.rc == 0
+  changed_when: false
+  when: not ansible_check_mode
