@@ -161,6 +161,26 @@
           - "{{ prom_file }}"
       changed_when: false
 
+    - name: Stat ready marker
+      ansible.builtin.stat:
+        path: "{{ backup_root }}/data/{{ job_netns }}.ready"
+      register: pgextdkr_ready
+
+    - name: Read ready marker
+      ansible.builtin.slurp:
+        src: "{{ backup_root }}/data/{{ job_netns }}.ready"
+      register: pgextdkr_ready_content
+
+    - name: Assert the ready marker describes a successful backup
+      ansible.builtin.assert:
+        that:
+          - pgextdkr_ready.stat.exists
+          - pgextdkr_ready.stat.mode == "0600"
+          - "'job=molecule_pgbasebackup' in (pgextdkr_ready_content.content | b64decode)"
+          - "'impl=pg_basebackup_extdkr' in (pgextdkr_ready_content.content | b64decode)"
+          - "'finished_at=' in (pgextdkr_ready_content.content | b64decode)"
+          - "'size_bytes=' in (pgextdkr_ready_content.content | b64decode)"
+
     - name: Run backup script with a failing fake docker
       ansible.builtin.command:
         cmd: "{{ backup_root }}/bin/{{ job_netns }}.sh"
@@ -179,6 +199,16 @@
       ansible.builtin.assert:
         that:
           - not pgextdkr_failed_data.stat.exists
+
+    - name: Stat ready marker after the failed run
+      ansible.builtin.stat:
+        path: "{{ backup_root }}/data/{{ job_netns }}.ready"
+      register: pgextdkr_ready_after_fail
+
+    - name: Assert a failed run leaves no ready marker
+      ansible.builtin.assert:
+        that:
+          - not pgextdkr_ready_after_fail.stat.exists
 
     - name: Check the cron jobs were installed
       ansible.builtin.command:

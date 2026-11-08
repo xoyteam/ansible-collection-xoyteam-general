@@ -71,12 +71,14 @@ PGBACKUP_IMAGE=postgres:16 PGBACKUP_DB_CONTAINER=db \
 4. оценка размера `PGDATA` (`docker exec <db> du -sk`) и проверка свободного
    места с запасом `pgextdkr_space_margin_percent`; при нехватке текущая копия
    не удаляется;
-5. удаление текущей копии, `mkdir` с `umask 077`;
+5. удаление текущей копии, `mkdir` с `umask 077`; перед удалением снимается
+   маркер готовности (см. «Взаимодействие с duplicity»);
 6. `docker compose run --rm`; вывод команды построчно пишется в лог с отметкой
    времени;
 7. при ошибке недописанная копия удаляется, код возврата `1`; при успехе —
    `0`, права `0700`, в лог пишется размер;
-8. best-effort обновление textfile-метрик node_exporter.
+8. запись маркера готовности `<data>/<job>.ready` (атомарно, `0600`) и
+   best-effort обновление textfile-метрик node_exporter.
 
 ## Переменные
 
@@ -96,6 +98,7 @@ PGBACKUP_IMAGE=postgres:16 PGBACKUP_DB_CONTAINER=db \
 | `pgextdkr_compose_project` | `pgbackup-<bkp_name>` | нет | имя compose-проекта |
 | `pgextdkr_compose_dir` | `<duplicitybkp_path>/compose/<job>` | нет | каталог compose-проекта |
 | `pgextdkr_lock_file` | `/run/lock/pgbackup-<job>.lock` | нет | общий lock |
+| `pgextdkr_ready_file` | `<data>/<job>.ready` | нет | маркер готовности; пусто — не пишется |
 | `pgextdkr_space_margin_percent` | `20` | нет | запас места, % |
 | `pgextdkr_min_free_kb` | `0` | нет | резервный минимум, если размер не оценён |
 | `pgextdkr_pull_image` | `true` | нет | `docker pull` при установке, если образа нет |
@@ -218,12 +221,30 @@ backup_failures_total{...} M
 
 ## Взаимодействие с duplicity
 
-Роль держит **одну** локальную копию в `<data>/<job>` — её и забирает
-`duplicitybkp` (ssh-режим забирает `duplicitybkp_data_path` целиком). Ретенции
-локальных копий нет, историю хранит duplicity. Cron duplicity должен идти
-**после** бэкапа; чтобы исключить пересечение, используйте в задании duplicity
-тот же lock-файл (`pgextdkr_lock_file`, по умолчанию
-`/run/lock/pgbackup-<job>.lock`) через `flock`.
+Роль держит **одну** локальную копию в `<data>/<job>` и не хранит ретенцию —
+историю хранит duplicity. Чтобы отправка не забрала недописанную копию, роль
+отдаёт потребителю два сигнала:
+
+* **lock** — `pgextdkr_lock_file` (`/run/lock/pgbackup-<job>.lock`); держится
+  всё время работы скрипта;
+* **маркер готовности** — `pgextdkr_ready_file` (`<data>/<job>.ready`).
+  Снимается перед удалением текущей копии и пишется атомарно только после
+  успешного `pg_basebackup`; содержит `job`, `impl`, `host`, `path`,
+  `finished_at`, `finished_at_iso`, `size_bytes`. Его наличие означает «на
+  диске целая копия, можно забирать».
+
+Потребитель — `duplicitybkp` в ssh-режиме: задайте в задании отправки
+
+```yaml
+duplicitybkp_ssh_lock_file: "/run/lock/pgbackup-<job>.lock"
+duplicitybkp_ssh_lock_wait: 1800          # ждать lock не дольше 30 мин
+duplicitybkp_ssh_ready_file: "<data>/<job>.ready"
+```
+
+Тогда upload дождётся окончания бэкапа и упадёт (код `1`), если маркера нет
+или каталог пуст; сбой виден в метрике `backup_last_attempt_success{phase="upload"} = 0`
+и в алертах. Без этих переменных `duplicitybkp` работает по-старому — только
+по расписанию, без проверки готовности.
 
 ## Восстановление (кратко)
 

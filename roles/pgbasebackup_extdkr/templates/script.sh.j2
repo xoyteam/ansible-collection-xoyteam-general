@@ -29,6 +29,7 @@ SPACE_MARGIN_PERCENT="{{ pgextdkr_space_margin_percent | default(20) }}"
 MIN_FREE_KB="{{ pgextdkr_min_free_kb | default(0) }}"
 NODE_EXPORTER_DIR={{ node_exporter_textfile_dir | default('') | quote }}
 LOCK_FILE={{ pgextdkr_lock_file | quote }}
+READY_FILE={{ pgextdkr_ready_file | default('') | quote }}
 BACKUP_ROUTE="{{ backup_route | default('dev') }}"
 BACKUP_HOST="{{ backup_host | default(inventory_hostname) }}"
 ###******************************************************************************************###
@@ -212,6 +213,12 @@ fi
 ###******************************************************************************************###
 umask 077
 REPLACING=1
+# Маркер готовности снимаем до удаления текущей копии: прерванный или упавший
+# бэкап не должен выглядеть готовым для duplicity, а старая копия в этот момент
+# уже не актуальна.
+if [ -n "$READY_FILE" ]; then
+  rm -f -- "$READY_FILE"
+fi
 rm -rf -- "${CURRENT:?}"
 mkdir -p -- "$CURRENT"
 chmod 0700 -- "$CURRENT"
@@ -231,6 +238,25 @@ chmod -R go-rwx -- "$CURRENT"
 chmod 0700 -- "$CURRENT"
 ARCHIVE_SIZE=$(du -sh -- "$CURRENT" | awk '{print $1}')
 SIZE_BYTES=$(du -sb -- "$CURRENT" | awk '{print $1}')
+
+# Маркер готовности пишем до SUCCESS=1 и до метрик: если его не удалось
+# записать, бэкап считается упавшим и недописанная копия удаляется в cleanup.
+if [ -n "$READY_FILE" ]; then
+  ready_tmp="${READY_FILE}.$$"
+  {
+    printf 'job=%s\n' "$JOBNAME"
+    printf 'impl=pg_basebackup_extdkr\n'
+    printf 'host=%s\n' "$BACKUP_HOST"
+    printf 'path=%s\n' "$CURRENT"
+    printf 'finished_at=%s\n' "$($DATE +%s)"
+    printf 'finished_at_iso=%s\n' "$($DATE -u +%Y-%m-%dT%H:%M:%SZ)"
+    printf 'size_bytes=%s\n' "$SIZE_BYTES"
+  } > "$ready_tmp" || die "cannot write ready marker $ready_tmp"
+  chmod 0600 -- "$ready_tmp"
+  mv -f -- "$ready_tmp" "$READY_FILE" || die "cannot publish ready marker $READY_FILE"
+  log "ready marker written: $READY_FILE"
+fi
+
 SUCCESS=1
 bm_phase_success backup "$SIZE_BYTES" || true
 log "backup created: $CURRENT ($ARCHIVE_SIZE)"

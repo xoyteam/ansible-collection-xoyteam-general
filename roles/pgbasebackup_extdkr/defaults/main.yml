@@ -27,6 +27,14 @@ pgextdkr_compose_service: "pgbackup"
 pgextdkr_env_file:        "{{ pgextdkr_compose_dir }}/pgpass.env"
 pgextdkr_lock_file:       "/run/lock/pgbackup-{{ pgextdkr_jobname }}.lock"
 
+# Маркер готовности: файл рядом с каталогом копии. Пишется только после
+# успешного завершения pg_basebackup и удаляется перед заменой текущей копии,
+# поэтому его наличие означает «на диске лежит целая копия, можно забирать».
+# Потребитель (duplicitybkp_ssh с duplicitybkp_ssh_ready_file) падает, если
+# маркера нет; см. «Взаимодействие с duplicity» в README. Пусто — маркер не
+# пишется (тогда проверка готовности у потребителя работать не будет).
+pgextdkr_ready_file:      "{{ pgextdkr_data_path }}.ready"
+
 # Docker/DB settings.
 # pgextdkr_db_container is optional: if empty, the script looks for a single
 # running PostgreSQL container and uses postgres_version to pick one when there
