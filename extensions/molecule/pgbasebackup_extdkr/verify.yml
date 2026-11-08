@@ -8,6 +8,9 @@
     metric_dir: /var/lib/node_exporter/textfile
     job_netns: molecule_pgbasebackup
     job_net: molecule-net_pgbasebackup
+    # Имя prom-файла — по контракту backup_*: backup_<project>_<phase>.prom,
+    # где project — pgextdkr_jobname_prefix (bkp_name), а не имя job.
+    prom_file: "{{ metric_dir }}/backup_molecule_backup.prom"
   tasks:
     - name: Install fake docker CLI for the backup script test
       ansible.builtin.copy:
@@ -110,7 +113,7 @@
       loop:
         - "{{ backup_root }}/data/{{ job_netns }}"
         - "{{ backup_root }}/data/{{ job_netns }}/PG_VERSION"
-        - "{{ metric_dir }}/{{ job_netns }}.prom"
+        - "{{ prom_file }}"
       register: pgextdkr_data
 
     - name: Assert backup data and metric file
@@ -126,27 +129,36 @@
       ansible.builtin.command:
         argv:
           - grep
-          - -F
-          - 'duplicity_backup{type="pg_basebackup_extdkr",project="molecule_pgbasebackup"} 2'
-          - "{{ metric_dir }}/{{ job_netns }}.prom"
+          - -E
+          - '^backup_attempts_total\{[^}]*project="molecule"[^}]*\} 2$'
+          - "{{ prom_file }}"
+      changed_when: false
+
+    - name: Check metric success flag
+      ansible.builtin.command:
+        argv:
+          - grep
+          - -E
+          - '^backup_last_attempt_success\{[^}]*project="molecule"[^}]*\} 1$'
+          - "{{ prom_file }}"
       changed_when: false
 
     - name: Check metric timestamp
       ansible.builtin.command:
         argv:
           - grep
-          - -F
-          - 'duplicity_backup_last_success_timestamp_seconds{type="pg_basebackup_extdkr",project="molecule_pgbasebackup"}'
-          - "{{ metric_dir }}/{{ job_netns }}.prom"
+          - -E
+          - '^backup_last_success_timestamp_seconds\{[^}]*project="molecule"[^}]*\} [0-9]+$'
+          - "{{ prom_file }}"
       changed_when: false
 
     - name: Check metric duration
       ansible.builtin.command:
         argv:
           - grep
-          - -F
-          - 'duplicity_backup_duration_seconds{type="pg_basebackup_extdkr",project="molecule_pgbasebackup"}'
-          - "{{ metric_dir }}/{{ job_netns }}.prom"
+          - -E
+          - '^backup_duration_seconds\{[^}]*project="molecule"[^}]*\} [0-9]+$'
+          - "{{ prom_file }}"
       changed_when: false
 
     - name: Run backup script with a failing fake docker
