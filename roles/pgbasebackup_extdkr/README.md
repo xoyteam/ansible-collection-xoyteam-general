@@ -161,23 +161,27 @@ host    replication     all     172.19.0.0/24   scram-sha-256
 Контракт и правила именования — [docs/backup-metrics.md](../../docs/backup-metrics.md).
 Роль пишет `backup_*` (`last_attempt`, `last_success`, `duration`, `size`,
 `attempts`, `failures`) с labels `project`/`kind`/`impl`/`phase`/`backup_route`
-; legacy `duplicity_*` удалён.
+(legacy `duplicity_*` удалён).
 
 Если `node_exporter_textfile_dir` задан и каталог существует, роль создаёт его
-(`0755 root:root`), а скрипт после успешного бэкапа best-effort пишет атомарно
-файл `<job>.prom` (`0644`):
+(`0755 root:root`), а скрипт пишет атомарно файл
+`backup_<project>_<phase>.prom` (`0644`), где `project` — `pgextdkr_jobname_prefix`
+(`bkp_name`), `phase` — `backup`:
 
 ```
-duplicity_backup{type="pg_basebackup_extdkr",project="<job>"} N
-duplicity_backup_last_success_timestamp_seconds{type="pg_basebackup_extdkr",project="<job>"} <epoch>
-duplicity_backup_duration_seconds{type="pg_basebackup_extdkr",project="<job>"} <sec>
+backup_last_attempt_timestamp_seconds{project="<bkp_name>",kind="postgres",impl="pg_basebackup_extdkr",host="<host>",phase="backup",backup_route="<route>"} <epoch>
+backup_last_attempt_success{...} 1
+backup_last_success_timestamp_seconds{...} <epoch>
+backup_duration_seconds{...} <sec>
+backup_size_bytes{...} <bytes>
+backup_attempts_total{...} N
+backup_failures_total{...} M
 ```
 
-`duplicity_backup` — счётчик запусков (циклически 1..9), совместимый по имени с
-метрикой `pgbasebackup_dkr`/`pgbasebackup_native`; различайте задания по
-`project`. Ошибка записи метрики не отменяет успешный бэкап и не меняет код
-возврата. При неудачном бэкапе метрика не обновляется (ошибка видна по
-устаревшему `last_success_timestamp_seconds`).
+При неудачном бэкапе `backup_last_attempt_success` = 0, `backup_failures_total`
+растёт, а `backup_last_success_timestamp_seconds` остаётся от прошлого успеха —
+по нему и ловится «бэкап устарел». Ошибка записи метрики не отменяет успешный
+бэкап и не меняет код возврата.
 
 ## Пример
 
