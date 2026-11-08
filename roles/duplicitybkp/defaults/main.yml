@@ -103,6 +103,21 @@ duplicitybkp_ssh_known_hosts_group: "root"
 duplicitybkp_ssh_cron_minute: "06"
 duplicitybkp_ssh_cron_hour: "2"
 
+# Готовность данных перед upload (опционально; по умолчанию выключено —
+# прежнее поведение для mysql/files-заданий).
+#
+# ready_file — маркер, который пишет роль-производитель после успешного
+# завершения копии (сейчас это pgbasebackup_extdkr: pgextdkr_ready_file,
+# файл <data>/<job>.ready). Если маркер задан и его нет (или каталог пуст),
+# upload падает с кодом 1 и пишет backup_last_attempt_success=0.
+duplicitybkp_ssh_ready_file: ""
+#
+# lock_file — общий flock с ролью-производителем (pgbasebackup_extdkr:
+# pgextdkr_lock_file). Пока копия пишется, upload не стартует: ждёт
+# lock_wait секунд, затем падает с кодом 75. Пусто — без блокировки.
+duplicitybkp_ssh_lock_file: ""
+duplicitybkp_ssh_lock_wait: 0
+
 #duplicitybkp_scritptemplate
 duplicitybkp_type: swift
 duplicitybkp_volsize: 500

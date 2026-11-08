@@ -44,10 +44,44 @@ defaults намеренно не заданы: их передаёт потре�
 | `duplicitybkp_ssh_known_hosts_scan_opts` | `-T 10 -t ed25519,rsa` | опции `ssh-keyscan` |
 | `duplicitybkp_ssh_known_hosts_owner` / `_group` | `root` / `root` | владелец каталога и файла; меняйте вместе с `_path`, если бэкап идёт не от root |
 
+Проверка готовности данных (опционально, по умолчанию выключена):
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `duplicitybkp_ssh_ready_file` | `""` | маркер готовности от роли-производителя (`<data>/<job>.ready` у `pgbasebackup_extdkr`); нет файла — upload падает |
+| `duplicitybkp_ssh_lock_file` | `""` | общий `flock` с ролью-производителем; пока копия пишется, upload не стартует |
+| `duplicitybkp_ssh_lock_wait` | `0` | сколько секунд ждать lock; `0` — падать сразу |
+
 Пароль MySQL роль не генерирует и не хранит: по умолчанию он читается на
 control-node из `{{ playbook_dir }}/credentials-crypt/<mysqlbkp_host>/mysql_bkp_password`
 (пустой или отсутствующий файл — ошибка); явно заданный `mysqlbkp_pass` имеет
 приоритет.
+
+Готовность данных
+-----------------
+
+Скрипт upload по расписанию не знает, закончилась ли копия, которую он
+отправляет. Если роль-производитель умеет это сообщать (сейчас —
+`pgbasebackup_extdkr`), задание отправки включает проверку:
+
+```yaml
+duplicitybkp_ssh_lock_file: "/run/lock/pgbackup-<job>.lock"   # = pgextdkr_lock_file
+duplicitybkp_ssh_lock_wait: 1800
+duplicitybkp_ssh_ready_file: "<data>/<job>.ready"             # = pgextdkr_ready_file
+```
+
+Порядок в скрипте:
+
+1. берётся общий `flock`; занят — ждём `duplicitybkp_ssh_lock_wait` секунд
+   (при `0` — сразу), затем выход с кодом `75`;
+2. проверяется маркер готовности и непустой каталог; нет — выход с кодом `1`;
+3. только после этого запускается duplicity. Lock держится до конца скрипта,
+   поэтому следующий бэкап не начнётся посреди отправки.
+
+Каждый такой отказ проходит через `bm_phase_fail upload`, поэтому в
+textfile-метриках будет `backup_last_attempt_success{phase="upload"} = 0` и
+увеличенный `backup_failures_total` — сработает общее правило «Backup attempt
+failed»; `backup_last_success` при этом не обновляется.
 
 SSH-режим и known_hosts
 -----------------------

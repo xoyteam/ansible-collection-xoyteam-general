@@ -18,6 +18,60 @@ bm_init "$JOBNAME" "{{ backup_kind | default('files') }}" "duplicitybkp_ssh" \
   "$BACKUP_HOST" "$BACKUP_ROUTE" "$node_exporter_textfile_dir"
 bm_phase_start upload
 
+READY_FILE="{{ duplicitybkp_ssh_ready_file | default('') }}"
+LOCK_FILE="{{ duplicitybkp_ssh_lock_file | default('') }}"
+LOCK_WAIT="{{ duplicitybkp_ssh_lock_wait | default(0) }}"
+
+###******************************************************************************************###
+# Готовность данных. Роль-производитель (pgbasebackup_extdkr) держит flock,
+# пока пишет копию, и снимает маркер готовности до замены текущей копии.
+# Здесь: дождаться освобождения lock (не дольше LOCK_WAIT секунд), затем
+# проверить маркер и непустой каталог. При неготовности upload падает, чтобы
+# мониторинг увидел сбой (backup_last_attempt_success=0), а не отправил
+# недописанные данные.
+###******************************************************************************************###
+if [ -n "$LOCK_FILE" ]; then
+  if ! command -v flock >/dev/null 2>&1; then
+    echo "$NOW: ERROR: flock is not available, but duplicitybkp_ssh_lock_file is set ($LOCK_FILE)" >&2
+    bm_phase_fail upload
+    exit 1
+  fi
+  mkdir -p -- "$(dirname -- "$LOCK_FILE")"
+  exec 9>"$LOCK_FILE" || {
+    echo "$NOW: ERROR: cannot open lock file $LOCK_FILE" >&2
+    bm_phase_fail upload
+    exit 1
+  }
+  case "$LOCK_WAIT" in
+    ''|*[!0-9]*) LOCK_WAIT=0 ;;
+  esac
+  if [ "$LOCK_WAIT" -gt 0 ]; then
+    if ! flock -w "$LOCK_WAIT" 9; then
+      echo "$NOW: ERROR: backup is still running (lock $LOCK_FILE, waited ${LOCK_WAIT}s); upload aborted" >&2
+      bm_phase_fail upload
+      exit 75
+    fi
+  elif ! flock -n 9; then
+    echo "$NOW: ERROR: backup is still running (lock $LOCK_FILE); upload aborted" >&2
+    bm_phase_fail upload
+    exit 75
+  fi
+fi
+
+if [ -n "$READY_FILE" ]; then
+  if [ ! -f "$READY_FILE" ]; then
+    echo "$NOW: ERROR: backup is not ready: marker $READY_FILE is absent (backup failed or not finished)" >&2
+    bm_phase_fail upload
+    exit 1
+  fi
+  if [ ! -d "$BKPTARGET" ] || [ -z "$(ls -A -- "$BKPTARGET" 2>/dev/null)" ]; then
+    echo "$NOW: ERROR: backup is not ready: $BKPTARGET is missing or empty" >&2
+    bm_phase_fail upload
+    exit 1
+  fi
+  echo "$NOW: backup ready: $(sed -n 's/^finished_at_iso=//p' "$READY_FILE" 2>/dev/null || true)"
+fi
+
 # Выполнение архивирования
 /usr/bin/duplicity \
     --volsize {{ duplicitybkp_volsize }} \
@@ -36,7 +90,7 @@ if [[ $rc -ne 0 ]]; then
   bm_phase_fail upload
   exit "$rc"
 fi
-echo "$NOW: Backup database succefully uploaded to S3"
+echo "$NOW: backup uploaded successfully"
 
 BACKUP_SIZE=$(du -sb -- "$BKPTARGET" 2>/dev/null | awk '{print $1}' || true)
 bm_phase_success upload "${BACKUP_SIZE:-}" || true
