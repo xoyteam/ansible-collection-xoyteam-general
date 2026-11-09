@@ -224,8 +224,15 @@ mkdir -p -- "$CURRENT"
 chmod 0700 -- "$CURRENT"
 
 set +e
+# --pull появился в compose 2.20; старые CLI (например 2.18) отвергают флаг и
+# роняют весь run. Образ обычно уже локальный (взят у контейнера БД), поэтому
+# без поддержки запускаем без него.
+PULL_ARGS=()
+if "$DOCKER" compose run --help 2>/dev/null | grep -q -- '--pull'; then
+  PULL_ARGS=(--pull missing)
+fi
 PGBACKUP_IMAGE="$IMAGE" PGBACKUP_DB_CONTAINER="$DB_CONTAINER" \
-  "$DOCKER" compose -f "$COMPOSE_FILE" -p "$PROJECT" run --rm --no-deps --pull missing \
+  "$DOCKER" compose -f "$COMPOSE_FILE" -p "$PROJECT" run --rm --no-deps "${PULL_ARGS[@]}" \
     "$SERVICE" -D /backup -h "$PGHOST" -p "$PGPORT" -U "$PGUSER" $PG_BASEBACKUP_OPTIONS 2>&1 \
   | while IFS= read -r line; do log "$line"; done
 run_rc=${PIPESTATUS[0]}

@@ -70,8 +70,9 @@ pgextdkr_space_margin_percent: 20
 # Fallback when the size cannot be estimated via docker exec.
 pgextdkr_min_free_kb: 0
 
-# Pull the image at role apply time when it is known; the script also passes
-# `--pull missing` to `docker compose run`.
+# Pull the image at role apply time when it is known; the script passes
+# `--pull missing` to `docker compose run` only when the CLI supports it
+# (compose >= 2.20), otherwise it runs with the local image.
 pgextdkr_pull_image: true
 
 pgextdkr_cron_minute: "03"

@@ -262,6 +262,7 @@ duplicitybkp_ssh_ready_file: "<data>/<job>.ready"
 * нет WAL-архивирования/PITR;
 * нет таймаута и ретраев вокруг `docker compose run`;
 * логический `pg_dump` — отдельная роль;
-* `--pull missing` требует достаточно свежий `docker compose` (проверено на
-  compose 2.36+); на старых версиях используйте `pgextdkr_pull_image` и
-  предварительный `docker pull`.
+* `--pull missing` передаётся `docker compose run` только если CLI его знает
+  (`compose >= 2.20`; проверяется через `compose run --help`). На более старых
+  версиях (например 2.18) скрипт запускает контейнер с локальным образом без
+  этого флага, поэтому роль работает и там.
