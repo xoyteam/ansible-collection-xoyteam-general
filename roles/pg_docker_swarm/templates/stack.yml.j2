@@ -2,19 +2,33 @@
 version: "3.8"
 
 services:
-  postgres:
+  {{ pgdocker_swarm_service }}:
     image: {{ pgdocker_swarm_image }}
     environment:
       POSTGRES_DB: {{ pgdocker_swarm_db }}
       POSTGRES_USER: {{ pgdocker_swarm_user }}
       POSTGRES_PASSWORD: "{{ pgdocker_swarm_password }}"
+      PGDATA: {{ pgdocker_swarm_pgdata }}
+{% if pgdocker_swarm_initdb_args | length > 0 %}
+      POSTGRES_INITDB_ARGS: "{{ pgdocker_swarm_initdb_args }}"
+{% endif %}
+{% if pgdocker_swarm_timezone | length > 0 %}
+      TZ: "{{ pgdocker_swarm_timezone }}"
+{% endif %}
 {% for key, value in pgdocker_swarm_env.items() %}
       {{ key }}: "{{ value }}"
 {% endfor %}
     volumes:
       - type: bind
         source: {{ pgdocker_swarm_data_dir }}
-        target: /var/lib/postgresql/data
+        target: {{ pgdocker_swarm_pgdata }}
+{% if pgdocker_swarm_publish_port is not none and (pgdocker_swarm_publish_port | int) > 0 %}
+    ports:
+      - target: 5432
+        published: {{ pgdocker_swarm_publish_port }}
+        protocol: tcp
+        mode: {{ pgdocker_swarm_publish_mode }}
+{% endif %}
     networks:
       - pgnet
     healthcheck:

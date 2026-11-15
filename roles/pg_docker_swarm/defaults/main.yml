@@ -3,10 +3,12 @@
 # к которой другие стеки подключаются как к external network.
 #
 # Хост должен быть в Swarm (docker swarm init); роль его не инициализирует.
-# Опубликованных наружу портов нет: потребители ходят по имени сервиса
-# (postgres) внутри overlay-сети.
+# По умолчанию порт наружу не публикуется: потребители ходят по имени сервиса
+# (postgres) внутри overlay-сети. Для доступа с хоста/извне задайте
+# pgdocker_swarm_publish_port.
 
 pgdocker_swarm_stack: pg
+pgdocker_swarm_service: postgres
 pgdocker_swarm_image: postgres:17
 pgdocker_swarm_install_path: "/home/docker/{{ pgdocker_swarm_stack }}"
 pgdocker_swarm_data_dir: "{{ pgdocker_swarm_install_path }}/data"
@@ -15,6 +17,20 @@ pgdocker_swarm_network: "{{ pgdocker_swarm_stack }}-net"
 pgdocker_swarm_db: postgres
 pgdocker_swarm_user: postgres
 pgdocker_swarm_password: change-me
+
+# PGDATA внутри контейнера и target bind-mount. Для postgres:18 явно задаём
+# /var/lib/postgresql/data: дефолт образа 18 — /var/lib/postgresql/18/docker,
+# без этого данные ушли бы мимо bind-mount. Для postgres:17 значение то же.
+pgdocker_swarm_pgdata: /var/lib/postgresql/data
+
+# Публикация порта на хост. null/0 — не публиковать (поведение по умолчанию,
+# как у Bareos). Для lab2: 5432.
+pgdocker_swarm_publish_port: null
+pgdocker_swarm_publish_mode: ingress
+
+# Необязательные env контейнера (пусто — не рендерить).
+pgdocker_swarm_initdb_args: ""
+pgdocker_swarm_timezone: ""
 
 # uid/gid официального образа postgres (999:999).
 pgdocker_swarm_uid: 999

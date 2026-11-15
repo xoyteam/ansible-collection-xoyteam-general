@@ -1,6 +1,15 @@
 ---
 # PostgreSQL в Swarm: проверки, overlay-сеть, стек, ожидание готовности.
 
+- name: Validate the published port
+  ansible.builtin.assert:
+    that:
+      - pgdocker_swarm_publish_port is none or ((pgdocker_swarm_publish_port | int) >= 0 and (pgdocker_swarm_publish_port | int) < 65536)
+    fail_msg: >-
+      pgdocker_swarm_publish_port должен быть null/0 (не публиковать) или
+      числом 1..65535.
+    quiet: true
+
 - name: Check that Docker Swarm is active
   ansible.builtin.command:
     argv: [docker, info, --format, "{{ '{{' }}.Swarm.LocalNodeState{{ '}}' }}"]
@@ -83,3 +92,33 @@
   until: pgdocker_swarm_ready.rc == 0
   changed_when: false
   when: not ansible_check_mode
+
+- name: Read published ports of the service
+  ansible.builtin.command:
+    argv:
+      - docker
+      - service
+      - inspect
+      - "{{ pgdocker_swarm_stack }}_{{ pgdocker_swarm_service }}"
+      - --format
+      - "{{ '{{' }}json .Endpoint.Ports{{ '}}' }}"
+  register: pgdocker_swarm_ports
+  changed_when: false
+  failed_when: false
+  when:
+    - not ansible_check_mode
+    - pgdocker_swarm_publish_port is not none
+    - (pgdocker_swarm_publish_port | int) > 0
+
+- name: Verify that the PostgreSQL port is published
+  ansible.builtin.assert:
+    that:
+      - (pgdocker_swarm_publish_port | int) in (pgdocker_swarm_ports.stdout | from_json | map(attribute='PublishedPort') | list)
+    fail_msg: >-
+      Сервис {{ pgdocker_swarm_stack }}_{{ pgdocker_swarm_service }} не публикует
+      порт {{ pgdocker_swarm_publish_port }}: {{ pgdocker_swarm_ports.stdout }}
+    quiet: true
+  when:
+    - not ansible_check_mode
+    - pgdocker_swarm_publish_port is not none
+    - (pgdocker_swarm_publish_port | int) > 0
