@@ -16,7 +16,19 @@ pgdocker_swarm_network: "{{ pgdocker_swarm_stack }}-net"
 
 pgdocker_swarm_db: postgres
 pgdocker_swarm_user: postgres
-pgdocker_swarm_password: change-me
+
+# Секрет суперпользователя. Однотипно с postgres_users:
+#   credentials-crypt/<inventory_hostname>/<container_name>_<dbms_name>_<role>
+# role — имя роли суперпользователя (pgdocker_swarm_user), для lab2 — postgres.
+# Длина >= 20; только буквы и цифры (ascii_letters включает заглавные),
+# без спецсимволов. Пароль можно переопределить (например, Bareos передаёт
+# свой bareos_catalog_password).
+pgdocker_swarm_dbms_name: postgres
+pgdocker_swarm_container_name: "{{ pgdocker_swarm_service }}"
+pgdocker_swarm_superuser_role: "{{ pgdocker_swarm_user }}"
+pgdocker_swarm_credentials_dir: "credentials-crypt/{{ inventory_hostname }}"
+pgdocker_swarm_password_length: 32
+pgdocker_swarm_password: "{{ lookup('password', pgdocker_swarm_credentials_dir ~ '/' ~ pgdocker_swarm_container_name ~ '_' ~ pgdocker_swarm_dbms_name ~ '_' ~ pgdocker_swarm_superuser_role ~ ' length=' ~ pgdocker_swarm_password_length ~ ' chars=ascii_letters,digits') }}"
 
 # PGDATA внутри контейнера и target bind-mount. Для postgres:18 явно задаём
 # /var/lib/postgresql/data: дефолт образа 18 — /var/lib/postgresql/18/docker,

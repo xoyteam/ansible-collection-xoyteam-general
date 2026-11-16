@@ -22,8 +22,13 @@ PostgreSQL в Docker Swarm: отдельный стек и отдельная at
 | `pgdocker_swarm_data_dir` | `<install_path>/data` | bind-mount данных (uid/gid 999) |
 | `pgdocker_swarm_network` | `<stack>-net` | имя attachable overlay-сети |
 | `pgdocker_swarm_db` | `postgres` | `POSTGRES_DB` |
-| `pgdocker_swarm_user` | `postgres` | `POSTGRES_USER` |
-| `pgdocker_swarm_password` | `change-me` | `POSTGRES_PASSWORD` (обязательно переопределить) |
+| `pgdocker_swarm_user` | `postgres` | `POSTGRES_USER` (суперпользователь) |
+| `pgdocker_swarm_dbms_name` | `postgres` | часть имени секрета |
+| `pgdocker_swarm_container_name` | `{{ pgdocker_swarm_service }}` | часть имени секрета; для нескольких инстансов на хосте задайте уникальное |
+| `pgdocker_swarm_superuser_role` | `{{ pgdocker_swarm_user }}` | роль суперпользователя — последняя часть имени секрета |
+| `pgdocker_swarm_credentials_dir` | `credentials-crypt/<inventory_hostname>` | каталог секрета (git-crypt) |
+| `pgdocker_swarm_password_length` | `32` | длина пароля (>= 20) |
+| `pgdocker_swarm_password` | lookup `password` | `POSTGRES_PASSWORD`; можно переопределить |
 | `pgdocker_swarm_pgdata` | `/var/lib/postgresql/data` | `PGDATA` и target bind-mount |
 | `pgdocker_swarm_publish_port` | `null` | published-порт на хост; `null`/`0` — не публиковать |
 | `pgdocker_swarm_publish_mode` | `ingress` | режим публикации Swarm |
@@ -43,6 +48,31 @@ PostgreSQL в Docker Swarm: отдельный стек и отдельная at
 6. Ждёт, пока сервис выйдет в `1/1`.
 7. Если задан `pgdocker_swarm_publish_port` — проверяет, что порт есть
    в `.Endpoint.Ports` сервиса.
+
+## Секрет суперпользователя
+
+Пароль генерируется `lookup('password')` и лежит в
+`credentials-crypt/<inventory_hostname>/<container_name>_<dbms_name>_<role>`:
+
+```
+credentials-crypt/<host>/<container_name>_postgres_<superuser_role>
+```
+
+Для lab2 (`container_name=postgres`, `superuser_role=postgres`):
+
+```
+credentials-crypt/gemohelp.lab2/postgres_postgres_postgres
+```
+
+Длина — `pgdocker_swarm_password_length` (по умолчанию 32, минимум 20);
+`chars=ascii_letters,digits` — буквы (включая заглавные) и цифры, без
+спецсимволов. `credentials-crypt/` в потребляющем проекте должен быть под
+git-crypt. Задачи с паролем помечены `no_log`; `stack.yml` — 0600.
+
+Это однотипно с `postgres_users` (`<username>_<dbms>_<role>`); для
+прикладных ролей/репликации/мониторинга секреты создаёт `postgres_users`.
+Пароль можно переопределить — например, Bareos передаёт свой
+`bareos_catalog_password`.
 
 `PGDATA` задаётся явно: в `postgres:18` дефолт —
 `/var/lib/postgresql/18/docker`, и без явного `PGDATA` bind-mount
@@ -89,7 +119,6 @@ networks:
         pgdocker_swarm_network: dbnet
         pgdocker_swarm_db: mydb
         pgdocker_swarm_user: postgres
-        pgdocker_swarm_password: "{{ lab2_pg_password }}"
         pgdocker_swarm_pgdata: /var/lib/postgresql/data
         pgdocker_swarm_initdb_args: "--data-checksums"
         pgdocker_swarm_timezone: Europe/Moscow
@@ -99,3 +128,13 @@ networks:
 Порт публикуется на всех интерфейсах хоста (`*:5432->5432/tcp`), как
 `mysql84` на `*:3307->3306/tcp`. Доступ — по паролю (`pg_hba` официального
 образа разрешает `host all all all scram-sha-256`).
+
+Пароль суперпользователя здесь не задаётся: роль сгенерирует его в
+`credentials-crypt/gemohelp.lab2/postgres_postgres_postgres`. Для
+`postgres_users` передайте тот же пароль:
+
+```yaml
+vars:
+  postgres_users_service: mydb
+  postgres_users_admin_password: "{{ pgdocker_swarm_password }}"
+```

@@ -1,6 +1,22 @@
 ---
 # PostgreSQL в Swarm: проверки, overlay-сеть, стек, ожидание готовности.
 
+- name: Validate the superuser secret settings
+  ansible.builtin.assert:
+    that:
+      - pgdocker_swarm_password | length >= 20
+      - pgdocker_swarm_password_length | int >= 20
+      - pgdocker_swarm_container_name | length > 0
+      - pgdocker_swarm_dbms_name | length > 0
+      - pgdocker_swarm_superuser_role | length > 0
+      - pgdocker_swarm_credentials_dir | length > 0
+    fail_msg: >-
+      Пароль суперпользователя должен быть не короче 20 символов
+      (pgdocker_swarm_password_length >= 20); нужны непустые
+      pgdocker_swarm_container_name, pgdocker_swarm_dbms_name,
+      pgdocker_swarm_superuser_role и pgdocker_swarm_credentials_dir.
+    quiet: true
+
 - name: Validate the published port
   ansible.builtin.assert:
     that:
@@ -67,6 +83,7 @@
     owner: root
     group: root
     mode: "0600"
+  no_log: true
 
 - name: Deploy the PostgreSQL stack
   ansible.builtin.command:
