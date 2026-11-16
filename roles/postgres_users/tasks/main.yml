@@ -1,0 +1,117 @@
+---
+- name: Validate role input
+  ansible.builtin.assert:
+    that:
+      - postgres_users_service | length > 0
+      - postgres_users_service is match('^[A-Za-z_][A-Za-z0-9_-]*$')
+      - postgres_users_admin_host | length > 0
+      - postgres_users_admin_password | length > 0
+      - postgres_users_dbms_name | length > 0
+      - postgres_users_app_user == postgres_users_service
+      - postgres_users_db_name == postgres_users_service
+      - postgres_users_replication_user | length > 0
+      - postgres_users_monitoring_user | length > 0
+      - postgres_users_credentials_dir | length > 0
+      - postgres_users_password_length | int >= 20
+    fail_msg: >-
+      Нужны непустые postgres_users_service (имя приложения; оно же имя
+      пользователя и базы), postgres_users_admin_password и корректные
+      имена ролей. postgres_users_app_user/db_name должны совпадать с
+      postgres_users_service; длина пароля — не меньше 20.
+    quiet: true
+
+- name: Ensure python3-psycopg2 is installed
+  ansible.builtin.apt:
+    name: python3-psycopg2
+    state: present
+    update_cache: true
+  become: true
+  register: postgres_users_psycopg2
+  retries: 3
+  delay: 5
+  until: postgres_users_psycopg2 is success
+
+- name: Create the application role
+  community.postgresql.postgresql_user:
+    name: "{{ postgres_users_app_user }}"
+    password: "{{ postgres_users_app_password }}"
+    role_attr_flags: "{{ postgres_users_app_role_attr_flags }}"
+    state: present
+    db: "{{ postgres_users_admin_db }}"
+    login_host: "{{ postgres_users_admin_host }}"
+    login_port: "{{ postgres_users_admin_port }}"
+    login_user: "{{ postgres_users_admin_user }}"
+    login_password: "{{ postgres_users_admin_password }}"
+  no_log: true
+
+- name: Create the application database
+  community.postgresql.postgresql_db:
+    name: "{{ postgres_users_db_name }}"
+    owner: "{{ postgres_users_app_user }}"
+    encoding: "{{ postgres_users_database_encoding }}"
+    maintenance_db: "{{ postgres_users_admin_db }}"
+    login_host: "{{ postgres_users_admin_host }}"
+    login_port: "{{ postgres_users_admin_port }}"
+    login_user: "{{ postgres_users_admin_user }}"
+    login_password: "{{ postgres_users_admin_password }}"
+  no_log: true
+
+- name: Ensure the application user owns the database
+  community.postgresql.postgresql_owner:
+    new_owner: "{{ postgres_users_app_user }}"
+    obj_type: database
+    obj_name: "{{ postgres_users_db_name }}"
+    db: "{{ postgres_users_admin_db }}"
+    login_host: "{{ postgres_users_admin_host }}"
+    login_port: "{{ postgres_users_admin_port }}"
+    login_user: "{{ postgres_users_admin_user }}"
+    login_password: "{{ postgres_users_admin_password }}"
+  no_log: true
+
+- name: Create the replication role
+  community.postgresql.postgresql_user:
+    name: "{{ postgres_users_replication_user }}"
+    password: "{{ postgres_users_replication_password }}"
+    role_attr_flags: "{{ postgres_users_replication_role_attr_flags }}"
+    state: present
+    db: "{{ postgres_users_admin_db }}"
+    login_host: "{{ postgres_users_admin_host }}"
+    login_port: "{{ postgres_users_admin_port }}"
+    login_user: "{{ postgres_users_admin_user }}"
+    login_password: "{{ postgres_users_admin_password }}"
+  no_log: true
+
+- name: Create the monitoring role
+  community.postgresql.postgresql_user:
+    name: "{{ postgres_users_monitoring_user }}"
+    password: "{{ postgres_users_monitoring_password }}"
+    role_attr_flags: "{{ postgres_users_monitoring_role_attr_flags }}"
+    state: present
+    db: "{{ postgres_users_admin_db }}"
+    login_host: "{{ postgres_users_admin_host }}"
+    login_port: "{{ postgres_users_admin_port }}"
+    login_user: "{{ postgres_users_admin_user }}"
+    login_password: "{{ postgres_users_admin_password }}"
+  no_log: true
+
+- name: Grant pg_monitor to the monitoring role
+  community.postgresql.postgresql_membership:
+    groups:
+      - "{{ postgres_users_monitoring_group }}"
+    target_roles:
+      - "{{ postgres_users_monitoring_user }}"
+    state: present
+    db: "{{ postgres_users_admin_db }}"
+    login_host: "{{ postgres_users_admin_host }}"
+    login_port: "{{ postgres_users_admin_port }}"
+    login_user: "{{ postgres_users_admin_user }}"
+    login_password: "{{ postgres_users_admin_password }}"
+  no_log: true
+
+- name: Summary
+  ansible.builtin.debug:
+    msg:
+      - "service / database / owner: {{ postgres_users_service }}"
+      - "application role: {{ postgres_users_app_user }}; secret: {{ postgres_users_credentials_dir }}/{{ postgres_users_app_user }}_{{ postgres_users_dbms_name }}_svc"
+      - "replication role: {{ postgres_users_replication_user }}; secret: {{ postgres_users_credentials_dir }}/{{ postgres_users_replication_user }}_{{ postgres_users_dbms_name }}_replication"
+      - "monitoring role: {{ postgres_users_monitoring_user }} (+{{ postgres_users_monitoring_group }}); secret: {{ postgres_users_credentials_dir }}/{{ postgres_users_monitoring_user }}_{{ postgres_users_dbms_name }}_monitoring"

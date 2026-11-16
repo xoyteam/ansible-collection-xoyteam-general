@@ -12,7 +12,7 @@
 > `credentials-crypt/<host>/mysql_bkp_password` рядом с playbook потребляющего
 > проекта (git-crypt); в примерах ниже — только заглушки вида `change-me`.
 
-Версия коллекции: `2.5.0` (тег `2.5.0`). CI нет; проверки — Molecule-сценарии
+Версия коллекции: `2.6.0` (тег `2.6.0`). CI нет; проверки — Molecule-сценарии
 (см. «Тестирование (Molecule)»).
 
 ---
@@ -28,6 +28,7 @@
 | `install_duplicity` | Заготовка установки duplicity | Пустая, не используется (установка в `duplicitybkp`) |
 | `pg_docker` | PostgreSQL в `docker compose` | Заготовка, handler использует устаревший `docker_compose` v1 |
 | `pg_docker_swarm` | PostgreSQL в Docker Swarm: стек, attachable overlay-сеть, опциональный published-порт | Рабочая (2026-11); Bareos и lab2 |
+| `postgres_users` | Прикладная БД/пользователь, роли репликации и мониторинга; секреты через lookup | Рабочая (2026-11); lab2 |
 | `mysql_server` | MySQL в `docker compose` | Заготовка |
 | `postgres_exporter` | `postgres_exporter` в `docker compose` | Заготовка |
 | `prometheus` | Prometheus в `docker compose` | Заготовка |

@@ -1,0 +1,11 @@
+galaxy_info:
+  role_name: postgres_users
+  author: Zyga Yuriy
+  description: PostgreSQL application database/role, replication role and monitoring role
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Debian
+      versions:
+        - trixie
+dependencies: []

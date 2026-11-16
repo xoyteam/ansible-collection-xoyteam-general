@@ -1,0 +1,47 @@
+---
+# Создание в PostgreSQL прикладного пользователя/базы, роли репликации и
+# роли мониторинга.
+#
+# Прикладной пользователь и база называются одинаково — именем сервиса
+# (postgres_users_service). Пользователь становится владельцем базы.
+#
+# Секреты генерируются lookup('password') и лежат в
+# credentials-crypt/<inventory_hostname>/<username>_<dbms>_<role>:
+#   <service>_postgres_svc
+#   replicator_postgres_replication
+#   observer_postgres_monitoring
+# Каталог credentials-crypt в потребляющем проекте должен быть под git-crypt.
+
+postgres_users_service: ""
+
+postgres_users_app_user: "{{ postgres_users_service }}"
+postgres_users_db_name: "{{ postgres_users_service }}"
+postgres_users_dbms_name: postgres
+
+# Подключение администратором (суперпользователь). По умолчанию — published
+# порт на самом хосте; для pg_docker_swarm без публикации порта роль не
+# подойдёт, нужен доступный endpoint.
+postgres_users_admin_host: 127.0.0.1
+postgres_users_admin_port: 5432
+postgres_users_admin_user: postgres
+postgres_users_admin_password: ""
+postgres_users_admin_db: postgres
+
+postgres_users_replication_user: replicator
+postgres_users_monitoring_user: observer
+postgres_users_monitoring_group: pg_monitor
+
+postgres_users_app_role_attr_flags: LOGIN
+postgres_users_replication_role_attr_flags: "LOGIN,REPLICATION"
+postgres_users_monitoring_role_attr_flags: LOGIN
+
+postgres_users_database_encoding: UTF8
+
+# Длина 32 >= 20; только буквы и цифры, без спецсимволов. ascii_letters
+# включает заглавные и строчные.
+postgres_users_password_length: 32
+postgres_users_credentials_dir: "credentials-crypt/{{ inventory_hostname }}"
+
+postgres_users_app_password: "{{ lookup('password', postgres_users_credentials_dir ~ '/' ~ postgres_users_app_user ~ '_' ~ postgres_users_dbms_name ~ '_svc length=' ~ postgres_users_password_length ~ ' chars=ascii_letters,digits') }}"
+postgres_users_replication_password: "{{ lookup('password', postgres_users_credentials_dir ~ '/' ~ postgres_users_replication_user ~ '_' ~ postgres_users_dbms_name ~ '_replication length=' ~ postgres_users_password_length ~ ' chars=ascii_letters,digits') }}"
+postgres_users_monitoring_password: "{{ lookup('password', postgres_users_credentials_dir ~ '/' ~ postgres_users_monitoring_user ~ '_' ~ postgres_users_dbms_name ~ '_monitoring length=' ~ postgres_users_password_length ~ ' chars=ascii_letters,digits') }}"
