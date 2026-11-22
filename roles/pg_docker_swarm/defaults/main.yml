@@ -44,6 +44,15 @@ pgdocker_swarm_publish_mode: ingress
 pgdocker_swarm_initdb_args: ""
 pgdocker_swarm_timezone: ""
 
+# Настройки PostgreSQL через `postgres -c key=value` (пусто — дефолты образа).
+# Пример:
+#   pgdocker_swarm_settings:
+#     maintenance_work_mem: 2GB
+#     max_wal_size: 8GB
+#     checkpoint_timeout: 15min
+#     wal_compression: "on"
+pgdocker_swarm_settings: {}
+
 # uid/gid официального образа postgres (999:999).
 pgdocker_swarm_uid: 999
 pgdocker_swarm_gid: 999

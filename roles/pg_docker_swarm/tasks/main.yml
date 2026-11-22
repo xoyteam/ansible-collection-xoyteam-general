@@ -110,6 +110,22 @@
   changed_when: false
   when: not ansible_check_mode
 
+- name: Wait for PostgreSQL to accept connections
+  ansible.builtin.shell: |
+    set -o pipefail
+    cid="$(docker ps -q -f name={{ pgdocker_swarm_stack }}_{{ pgdocker_swarm_service }} | head -1)"
+    test -n "$cid"
+    for i in $(seq 1 60); do
+      if docker exec "$cid" pg_isready -U {{ pgdocker_swarm_user }} -d {{ pgdocker_swarm_db }} >/dev/null 2>&1; then
+        exit 0
+      fi
+      sleep 2
+    done
+    exit 1
+  register: pgdocker_swarm_psql_ready
+  changed_when: false
+  when: not ansible_check_mode
+
 - name: Read published ports of the service
   ansible.builtin.command:
     argv:

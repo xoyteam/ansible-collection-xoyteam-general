@@ -18,6 +18,14 @@ services:
 {% for key, value in pgdocker_swarm_env.items() %}
       {{ key }}: "{{ value }}"
 {% endfor %}
+{% if pgdocker_swarm_settings | length > 0 %}
+    command:
+      - postgres
+{% for key, value in pgdocker_swarm_settings.items() %}
+      - "-c"
+      - "{{ key }}={{ value }}"
+{% endfor %}
+{% endif %}
     volumes:
       - type: bind
         source: {{ pgdocker_swarm_data_dir }}

@@ -34,6 +34,7 @@ PostgreSQL в Docker Swarm: отдельный стек и отдельная at
 | `pgdocker_swarm_publish_mode` | `ingress` | режим публикации Swarm |
 | `pgdocker_swarm_initdb_args` | `""` | необязательные `POSTGRES_INITDB_ARGS` |
 | `pgdocker_swarm_timezone` | `""` | необязательный `TZ` контейнера |
+| `pgdocker_swarm_settings` | `{}` | настройки PostgreSQL через `postgres -c key=value` |
 | `pgdocker_swarm_uid` / `gid` | `999` | владелец data-dir |
 | `pgdocker_swarm_replicas` | `1` | реплики сервиса |
 | `pgdocker_swarm_env` | `{}` | доп. env-переменные |
@@ -45,7 +46,7 @@ PostgreSQL в Docker Swarm: отдельный стек и отдельная at
 3. Создаёт attachable overlay-сеть (`docker network create -d overlay --attachable`).
 4. Рендерит `stack.yml` (0600 — в нём пароль).
 5. `docker stack deploy --with-registry-auth`.
-6. Ждёт, пока сервис выйдет в `1/1`.
+6. Ждёт, пока сервис выйдет в `1/1`, затем — `pg_isready` внутри контейнера.
 7. Если задан `pgdocker_swarm_publish_port` — проверяет, что порт есть
    в `.Endpoint.Ports` сервиса.
 
@@ -123,6 +124,11 @@ networks:
         pgdocker_swarm_initdb_args: "--data-checksums"
         pgdocker_swarm_timezone: Europe/Moscow
         pgdocker_swarm_publish_port: 5432
+        pgdocker_swarm_settings:
+          maintenance_work_mem: 2GB
+          max_wal_size: 8GB
+          checkpoint_timeout: 15min
+          wal_compression: "on"
 ```
 
 Порт публикуется на всех интерфейсах хоста (`*:5432->5432/tcp`), как
